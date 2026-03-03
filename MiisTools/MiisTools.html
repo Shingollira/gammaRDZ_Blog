@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>MiiTools</title>
+    <link rel="icon" href="/icon.gif" type="image/gif">
+<a href="https://riitag.t0g3pii.de/user/1294064411811647560" target="_blank">
+  <img id="riitag" src="https://riitag.t0g3pii.de/1294064411811647560/tag.png" alt="RiiTag">
+</a>
+
+<style>
+  #riitag {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    display: block;
+    margin: 10px auto;
+  }
+</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiisTools</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding:20px; max-width:720px; }
+  h2 { margin-top:40px; }
+  ul { list-style:none; padding:0; }
+  li { margin-bottom:10px; border-bottom:1px solid #ccc; padding-bottom:5px; }
+  input, select, button, textarea { margin-top:5px; display:block; width:100%; }
+  textarea { height:40px; font-family: monospace; }
+  img { display:block; margin:5px auto; width:64px; height:64px; }
+</style>
+</head>
+<body>
+<h1>Miis Multi-Herramienta</h1>
+
+<!-- ===================== Convertidor RSD → RCD ===================== -->
+<h2>1. Convertidor RSD → RCD</h2>
+<input type="file" id="rsdFileInput" multiple>
+<button id="rsdConvertBtn">Convertir y descargar (.rcd)</button>
+<div id="rsdStatus"></div>
+
+<!-- ===================== Editor de Miis Wii ===================== -->
+<h2>2. Editor de Miis Wii (bloques editables)</h2>
+<input type="file" id="wiiEditorFileInput" multiple>
+<div style="display:flex; gap:10px;">
+  <div>
+    <label>Bloque 1 (4 bytes)</label>
+    <textarea id="wiiBlock1"></textarea>
+  </div>
+  <div>
+    <label>Bloque 2 (4 bytes)</label>
+    <textarea id="wiiBlock2"></textarea>
+  </div>
+</div>
+<label>Extensión de salida:</label>
+<select id="wiiExtSelect">
+  <option value="rcd">.rcd</option>
+  <option value="mii">.mii</option>
+  <option value="miigx">.miigx</option>
+</select>
+<button id="wiiDownloadBtn">Descargar ZIP de Miis editados</button>
+<ul id="wiiOutputList"></ul>
+
+<!-- ===================== 3. Conversión DS → Wii / Extracción de saves ===================== -->
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DS Mii to Wii Converter</title>
+  <style>
+    body { font-family: sans-serif; padding: 10px; }
+    button { cursor: pointer; margin-top: 5px; }
+    li { margin-bottom: 10px; }
+  </style>
+</head>
+
+<body>
+  <h1>DS Mii format to Wii format converter</h1>
+  <p>Drop a DS format (".ncd") Mii file or its 74 byte data in hex here.<br>
+    Or, drop a save file/state/memdump from Tomodachi Collection.</p>
+
+  <div id="miiConverterContainer"></div>
+
+  <script>
+    const MiiConverter = (() => {
+      const DATA_LENGTH = 74;
+      const NAME_OFFSET = 0x2;
+      const MAX_NAME_LENGTH = 0x14;
+      const FFLI_SWAP_ENDIAN_TYPE_U8 = 0;
+      const FFLI_SWAP_ENDIAN_TYPE_U16 = 1;
+      const FFLI_SWAP_ENDIAN_TYPE_U32 = 2;
+
+      const SWAP_DESC = [
+        { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 11 },
+        { type: FFLI_SWAP_ENDIAN_TYPE_U8, count: 10 },
+        { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 11 },
+        { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 10 }
+      ];
+
+      // Utility functions
+      const swapEndianArray = (data, start, count, type) => {
+        const size = type === FFLI_SWAP_ENDIAN_TYPE_U8 ? 1 :
+                     type === FFLI_SWAP_ENDIAN_TYPE_U16 ? 2 : 4;
+        for (let i = 0; i < count; i++) {
+          const index = start + i * size;
+          if (type === FFLI_SWAP_ENDIAN_TYPE_U16) [data[index], data[index + 1]] = [data[index + 1], data[index]];
+          else if (type === FFLI_SWAP_ENDIAN_TYPE_U32) {
+            const t0=data[index], t1=data[index+1], t2=data[index+2], t3=data[index+3];
+            data[index]=t3; data[index+1]=t2; data[index+2]=t1; data[index+3]=t0;
+          }
+        }
+      };
+
+      const swapEndian = (data) => {
+        let offset = 0;
+        SWAP_DESC.forEach(desc => {
+          swapEndianArray(data, offset, desc.count, desc.type);
+          offset += desc.count * (desc.type === FFLI_SWAP_ENDIAN_TYPE_U8 ? 1 :
+                                 desc.type === FFLI_SWAP_ENDIAN_TYPE_U16 ? 2 : 4);
+        });
+      };
+
+      const bytesToHex = bytes => Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+
+      const padTo74Bytes = data => {
+        if (data.length===74) return data;
+        if (data.length<74){ const padded=new Uint8Array(74); padded.set(data); return padded; }
+        return data.slice(0,74);
+      };
+
+      const extractName = (data, offset=NAME_OFFSET, maxLen=MAX_NAME_LENGTH) => {
+        let end=offset;
+        while(end<offset+maxLen && !(data[end]===0 && data[end+1]===0)) end+=2;
+        return new TextDecoder('utf-16be').decode(data.slice(offset,end));
+      };
+
+      const getRandomPastelColor = () => {
+        const mix=[255,255,224], base=[Math.random()*256,Math.random()*256,Math.random()*256];
+        return `rgb(${base.map((v,i)=>Math.round((v+mix[i])/2)).join(',')})`;
+      };
+
+      const isValidBlock = block => {
+        const invalidPrefix = [0x74,0x73,0x75,0x6D,0x61,0x6E,0x6F,0x67,0x6F,0x73,0x61,0x6B,0x61,0x74,0x61];
+        if (block.every(b=>b===0)) return false;
+        if (invalidPrefix.every((v,i)=>v===block[i])) return false;
+        return true;
+      };
+
+      const createUI = container => {
+        container.innerHTML = `
+          <form>
+            <input type="file" id="mcFileInput"><br>
+            <input type="text" id="mcDataInput" placeholder="Base64 or Hex Mii Data"><br>
+            <input type="submit" value="Process">
+          </form>
+          <ul id="mcOutputList"></ul>
+        `;
+      };
+
+      const appendResult = (hexData, name, rawData, list) => {
+        const li=document.createElement('li');
+        li.style.color = getRandomPastelColor();
+        li.innerHTML = `<strong>${name}</strong><pre>${hexData}</pre>
+          <img loading="lazy" src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(hexData)}"><br>`;
+        const btn=document.createElement('button');
+        btn.textContent='Download .rcd';
+        btn.onclick=()=>{ 
+          const blob = new Blob([rawData], {type:'application/octet-stream'});
+          const a=document.createElement('a');
+          a.href=URL.createObjectURL(blob);
+          a.download = `${name||'mii'}.rcd`;
+          a.click(); 
+          URL.revokeObjectURL(a.href);
+        };
+        li.appendChild(btn);
+        list.insertBefore(li,list.firstChild);
+      };
+
+      const processBlocks = blocks => {
+        const list = document.getElementById('mcOutputList');
+        blocks.forEach(b=>{
+          const copy=new Uint8Array(b);
+          swapEndian(copy);
+          appendResult(bytesToHex(copy), extractName(copy), copy, list);
+        });
+      };
+
+      const detectAndDecodeInput = input => {
+        input=input.replace(/\s+/g,'');
+        if (/^[0-9a-fA-F]+$/.test(input)) return new Uint8Array(input.match(/.{1,2}/g).map(b=>parseInt(b,16)));
+        try{ const binary=atob(input); return Uint8Array.from(binary,c=>c.charCodeAt(0)); } catch { throw new Error("Invalid Base64 or Hex input"); }
+      };
+
+      const extractBlocksFromData = data => {
+        const sig=[0x4D,0x61,0x61,0x4D,0x69,0x69,0x4D,0x75,0x75,0x4D,0x65,0x65,0x4D,0x6F,0x6F,0x00];
+        const blocks=[];
+        for(let i=0;i<=data.length-sig.length-DATA_LENGTH;i++){
+          if(sig.every((v,j)=>v===data[i+j])){
+            const blk=data.slice(i+sig.length,i+sig.length+DATA_LENGTH);
+            if(isValidBlock(blk)) blocks.push(blk);
+            i+=DATA_LENGTH-1;
+          }
+        }
+        return blocks;
+      };
+
+      const deduplicateBlocks = blocks => {
+        const seen=new Set(), uniques=[];
+        blocks.forEach(b=>{ const h=bytesToHex(b); if(!seen.has(h)){seen.add(h); uniques.push(b);} });
+        return uniques;
+      };
+
+      const handleSubmit = e => {
+        e.preventDefault();
+        const fileInput = document.getElementById('mcFileInput');
+        const textInput = document.getElementById('mcDataInput');
+        const list = document.getElementById('mcOutputList');
+
+        if(fileInput.files.length>0){
+          const file=fileInput.files[0];
+          const reader=new FileReader();
+          reader.onload=e=>{
+            let data=new Uint8Array(e.target.result);
+            if(data.length>DATA_LENGTH){
+              const blocks=deduplicateBlocks(extractBlocksFromData(data));
+              processBlocks(blocks);
+            } else processBlocks([padTo74Bytes(data)]);
+          };
+          reader.readAsArrayBuffer(file);
+        } else if(textInput.value.trim()!==''){
+          try{ processBlocks([padTo74Bytes(detectAndDecodeInput(textInput.value))]); } 
+          catch(err){ alert(err.message); }
+        } else alert("Provide file or hex/base64 Mii data.");
+      };
+
+      return {
+        init: containerId=>{
+          const container=document.getElementById(containerId);
+          createUI(container);
+          const form=container.querySelector('form');
+          form.addEventListener('submit', handleSubmit);
+          container.querySelector('#mcFileInput').addEventListener('change', ()=>handleSubmit(new Event('submit')));
+        }
+      };
+    })();
+
+    document.addEventListener('DOMContentLoaded',()=>MiiConverter.init('miiConverterContainer'));
+  </script>
+<script>
+(() => {
+  const anotherRenderInput = document.getElementById('anotherRenderFileInput');
+  const anotherRenderOutputList = document.getElementById('anotherRenderOutputList');
+
+  function padTo74Bytes(arr){
+    const r = new Uint8Array(74);
+    r.set(arr.slice(0,74));
+    return r;
+  }
+
+  function extractMiiName(arr){
+    try { return new TextDecoder('utf-16le').decode(arr.slice(0,20)).replace(/\0/g,''); }
+    catch { return 'Unknown'; }
+  }
+
+  function dataToHex(arr){
+    return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  anotherRenderInput.addEventListener('change', async () => {
+    anotherRenderOutputList.innerHTML = '';
+    for(const f of anotherRenderInput.files){
+      const arr = padTo74Bytes(new Uint8Array(await f.arrayBuffer()));
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>${extractMiiName(arr)}</strong><br>${f.name}<br>
+        <img src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(dataToHex(arr))}">`;
+      anotherRenderOutputList.appendChild(li);
+    }
+  });
+})();
+</script>
+
+<!--// ===================== Render =====================-->
+<h2>Renderizador de Miis</h2>
+  <p>Sube varios archivos .rcd/.rsd para ver el nombre del archivo, nombre del Mii y render.</p>
+
+  <input type="file" id="wiiMii_fileInput" multiple>
+  <ul id="wiiMii_outputList"></ul>
+
+  <script>
+    const wiiMii_fileInput = document.getElementById('wiiMii_fileInput');
+    const wiiMii_outputList = document.getElementById('wiiMii_outputList');
+
+    function wiiMii_padTo74Bytes(data) {
+      return data.length < 74 ? new Uint8Array([...data, ...new Array(74 - data.length).fill(0)]) : data.slice(0,74);
+    }
+
+    function wiiMii_extractName(data) {
+      try {
+        const nameBytes = data.slice(2, 22);
+        return new TextDecoder('utf-16be').decode(nameBytes).replace(/\0/g,'');
+      } catch(e) { return 'Desconocido'; }
+    }
+
+    function wiiMii_addToList(fileName, miiName, data) {
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>Archivo:</strong> ${fileName}<br>
+                      <strong>Mii:</strong> ${miiName}<br>
+                      <img src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(
+                        Array.from(data).map(b=>b.toString(16).padStart(2,'0')).join('')
+                      )}" width="64" height="64">`;
+      wiiMii_outputList.appendChild(li);
+    }
+
+    wiiMii_fileInput.addEventListener('change', async () => {
+      wiiMii_outputList.innerHTML = '';
+      const files = Array.from(wiiMii_fileInput.files);
+      for (let file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        const data = wiiMii_padTo74Bytes(new Uint8Array(arrayBuffer));
+        const miiName = wiiMii_extractName(data);
+        wiiMii_addToList(file.name, miiName, data);
+      }
+    });
+  </script>
+<script>
+// ===================== Funciones de utilidad =====================
+function padTo74Bytes(data){ return data.length<74 ? new Uint8Array([...data,...new Array(74-data.length).fill(0)]) : data.slice(0,74); }
+function extractMiiName(data){ try { return new TextDecoder('utf-16be').decode(data.slice(2,22)).replace(/\0/g,'') || 'Unknown'; } catch(e){ return 'Unknown'; } }
+function dataToHex(data){ return Array.from(data).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function hexToData(hex){ const arr=[]; for(let i=0;i<hex.length;i+=2) arr.push(parseInt(hex.substr(i,2),16)); return new Uint8Array(arr); }
+function downloadBlob(data,name){ const blob=new Blob([data],{type:'application/octet-stream'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
+
+// ===================== 1. Convertidor RSD → RCD =====================
+const rsdInput = document.getElementById('rsdFileInput');
+const rsdBtn = document.getElementById('rsdConvertBtn');
+const rsdStatus = document.getElementById('rsdStatus');
+
+rsdBtn.addEventListener('click',()=>{
+  const files = rsdInput.files;
+  if(!files.length){ rsdStatus.textContent='Selecciona al menos un archivo'; return; }
+  rsdStatus.textContent='Procesando...';
+  Array.from(files).forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ()=> {
+      const arr = new Uint8Array(reader.result);
+      if(arr.length<2){ rsdStatus.textContent=`${file.name} demasiado pequeño`; return; }
+      const trimmed = arr.slice(0,arr.length-2);
+      downloadBlob(trimmed,file.name.replace(/\.[^/.]+$/,'')+'.rcd');
+      rsdStatus.textContent=`Procesados ${files.length} archivos`;
+    };
+    reader.readAsArrayBuffer(file);
+  });
+});
+
+// ===================== 2. Editor de Miis Wii =====================
+const wiiInput = document.getElementById('wiiEditorFileInput');
+const wiiBlock1 = document.getElementById('wiiBlock1');
+const wiiBlock2 = document.getElementById('wiiBlock2');
+const wiiExtSelect = document.getElementById('wiiExtSelect');
+const wiiDownloadBtn = document.getElementById('wiiDownloadBtn');
+const wiiOutputList = document.getElementById('wiiOutputList');
+let wiiMiisData = [];
+const editableIndices=[0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F];
+
+function renderWiiMiis(){
+  wiiOutputList.innerHTML='';
+  for(const m of wiiMiisData){
+    const li=document.createElement('li');
+    li.innerHTML=`<strong>${extractMiiName(m.data)}</strong><br>${m.fileName}<br>
+      <img src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(dataToHex(m.data))}">`;
+    wiiOutputList.appendChild(li);
+  }
+}
+
+function applyWiiBlocks(){
+  if(!wiiMiisData.length) return;
+  const hex1 = wiiBlock1.value.replace(/\s+/g,'');
+  const hex2 = wiiBlock2.value.replace(/\s+/g,'');
+  if(hex1.length!==8 || hex2.length!==8) return;
+  const edited = hexToData(hex1+hex2);
+  for(const m of wiiMiisData){
+    editableIndices.forEach((idx,j)=> m.data[idx]=edited[j]);
+  }
+  renderWiiMiis();
+}
+
+wiiInput.addEventListener('change',async()=>{
+  wiiMiisData=[];
+  for(const f of wiiInput.files){
+    const arr = padTo74Bytes(new Uint8Array(await f.arrayBuffer()));
+    wiiMiisData.push({fileName:f.name,data:arr});
+  }
+  if(wiiMiisData.length) {
+    wiiBlock1.value=Array.from(wiiMiisData[0].data.slice(editableIndices[0],editableIndices[0]+4)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+    wiiBlock2.value=Array.from(wiiMiisData[0].data.slice(editableIndices[4],editableIndices[4]+4)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+  }
+  renderWiiMiis();
+});
+
+wiiBlock1.addEventListener('input',applyWiiBlocks);
+wiiBlock2.addEventListener('input',applyWiiBlocks);
+
+wiiDownloadBtn.addEventListener('click',async()=>{
+  if(!wiiMiisData.length) return alert('No hay Miis cargados');
+  const zip = new JSZip();
+  const ext = wiiExtSelect.value;
+  for(const m of wiiMiisData){
+    zip.file(`${extractMiiName(m.data)}.${ext}`,m.data);
+  }
+  const content = await zip.generateAsync({type:'blob'});
+  downloadBlob(content,'Miis_editados.zip');
+});
+
+// ===================== 3. Conversión DS → Wii =====================
+const dsInput = document.getElementById('dsFileInput');
+const dsBtn = document.getElementById('dsConvertBtn');
+const dsOutputList = document.getElementById('dsOutputList');
+
+dsBtn.addEventListener('click',async()=>{
+  dsOutputList.innerHTML='';
+  for(const f of dsInput.files){
+    const arr = padTo74Bytes(new Uint8Array(await f.arrayBuffer()));
+    const li=document.createElement('li');
+    const name = extractMiiName(arr);
+    li.innerHTML=`<strong>${name}</strong><br>${f.name}<br>`;
+    const btnDS=document.createElement('button'); btnDS.textContent='.ncd'; btnDS.onclick=()=>downloadBlob(arr,name+'.ncd');
+    const btnWii=document.createElement('button'); btnWii.textContent='.rcd'; btnWii.onclick=()=>downloadBlob(arr,name+'.rcd');
+    li.appendChild(btnDS); li.appendChild(btnWii);
+    dsOutputList.appendChild(li);
+  }
+});
+
+// ===================== 4. Renderizador de Miis =====================
+const renderInput = document.getElementById('renderFileInput');
+const renderOutputList = document.getElementById('renderOutputList');
+
+renderInput.addEventListener('change',async()=>{
+  renderOutputList.innerHTML='';
+  for(const f of renderInput.files){
+    const arr = padTo74Bytes(new Uint8Array(await f.arrayBuffer()));
+    const li=document.createElement('li');
+    li.innerHTML=`<strong>${extractMiiName(arr)}</strong><br>${f.name}<br>
+      <img src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(dataToHex(arr))}">`;
+    renderOutputList.appendChild(li);
+  }
+});
+</script>
+</body>
+</html></html>>
+</body>
+</html></html></html></html>
