@@ -2,17 +2,45 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>QR_Text_Read</title>
+<title>QR Key Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  html, body {
+    margin:0;
+    padding:0;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:black;
+    color:white;
+    font-family:sans-serif;
+    text-align:center;
+    padding: 20px;
+  }
+</style>
 </head>
-<body style="background:black; color:white; font-family:monospace;">
+<body>
 
-<h1 id="text"></h1>
+<div id="message"></div>
 
 <script>
+const messageDiv = document.getElementById("message");
+
+// Tomar el parámetro "msg" de la URL
 const params = new URLSearchParams(window.location.search);
 const msg = params.get("msg");
 
-document.getElementById("text").textContent = msg || "Sin mensaje";
+// Si hay mensaje, mostrarlo
+if(msg) {
+  messageDiv.textContent = decodeURIComponent(msg);
+} else {
+  // Si no hay mensaje, vuelve atrás
+  messageDiv.textContent = "%20";
+  setTimeout(() => {
+    history.back();
+  }, 1000); // 1 segundo antes de regresar
+}
 </script>
 
 </body>
