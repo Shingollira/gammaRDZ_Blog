@@ -20,11 +20,15 @@ const msg = params.get("msg");
 if(msg) {
   messageDiv.textContent = decodeURIComponent(msg);
 } else {
-  // Si no hay mensaje, vuelve atrás
-  messageDiv.textContent = " ";
   setTimeout(() => {
     history.back();
   }, 1000); // 1 segundo antes de regresar
+}
+document.title = decodedMsg;
+} else {
+  setTimeout(() => {
+    history.back();
+  }, 1000);
 }
 </script>
 
