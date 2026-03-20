@@ -21,7 +21,7 @@ if(msg) {
   messageDiv.textContent = decodeURIComponent(msg);
 } else {
   // Si no hay mensaje, vuelve atrás
-  messageDiv.textContent = "%20";
+  messageDiv.textContent = " ";
   setTimeout(() => {
     history.back();
   }, 1000); // 1 segundo antes de regresar
