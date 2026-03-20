@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<<<head>
+<meta charset="UTF-8">
+<title>gammaRDZ's blog</title>
+<link rel="icon" href="iconblog.jpg" type="image/jpeg">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+@import url('https://fonts.googleapis.com/css?family=Roboto:400,700');
+
+body{
+  font-family: Roboto, sans-serif;
+  margin:0;
+  padding:0;
+  background:#fff;
+  color:#000;
+}
+
+/* RiiTag */
+.top-riitag{
+  width:100%;
+  display:flex;
+  justify-content:center;
+  margin-bottom:20px;
+}
+.top-riitag img{
+  max-width:100%;
+  height:auto;
+}
+
+/* Layout principal */
+#container{
+  display:flex;
+  max-width:1200px;
+  margin:auto;
+  padding:20px;
+  gap:20px;
+}
+
+/* Sidebar */
+aside{
+  width:260px;
+  display:flex;
+  flex-direction:column;
+  max-height:calc(100vh - 20px);
+  position:sticky;
+  top:20px;
+  overflow-y:auto;
+  border:none;
+}
+
+aside img.avatar{
+  width:128px;
+  height:128px;
+  margin-bottom:15px;
+  display:block;
+}
+
+aside a{
+  color:#000;
+  text-decoration:none;
+  margin-right:8px;
+}
+
+aside a:hover{
+  text-decoration:underline;
+}
+
+.sidebar-links{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:10px;
+}
+
+.sidebar-lab{
+  margin-top:auto;
+  padding-top:0px;
+}
+
+/* Área de posts */
+#posts-container{
+  flex:1;
+  max-width:700px;
+  position:relative;
+  padding-bottom:60px; /* espacio para paginación */
+}
+
+/* POSTS */
+section#posts{
+  margin-bottom:20px;
+}
+
+article{
+  margin-bottom:40px;
+  border-bottom:1px solid #ddd;
+  padding-bottom:30px;
+}
+
+article img{
+  max-width:100%;
+  display:block;
+  margin:10px 0;
+}
+
+.post-header{
+  display:flex;
+  align-items:center;
+  margin-bottom:10px;
+}
+
+.post-header img{
+  width:48px;
+  height:48px;
+  margin-right:10px;
+}
+
+.post-footer{
+  font-size:0.85rem;
+  color:#555;
+  margin-top:10px;
+}
+
+/* PAGINACIÓN en línea, esquina inferior izquierda */
+#pagination{
+  position:absolute;
+  bottom:0;
+  left:0;
+  display:none;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  font-size:16px;
+}
+
+.page-btn{
+  font-size:18px;
+  cursor:pointer;
+  padding:3px 8px;
+  border-radius:3px;
+  background:#eee;
+  user-select:none;
+}
+
+.page-btn:hover{
+  background:#ccc;
+}
+
+/* Fin del blog imagen */
+#endImageContainer{
+  display:none;
+  width:100%;
+  text-align:center;
+  margin-top:40px;
+}
+
+#endImageContainer img{
+  max-width:100%;
+  height:auto;
+}
+
+/* Responsive */
+@media(max-width:900px){
+  #container{
+    flex-direction:column;
+  }
+  aside{
+    width:100%;
+    position:relative;
+    top:auto;
+    margin-bottom:30px;
+  }
+  #pagination{
+    position:static;
+    text-align:center;
+    margin-top:20px;
+  }
+}
+</style>
+</head>
+<body>
+<div class="top-riitag">
+  <img src="https://riitag.t0g3pii.de/1294064411811647560/tag.max.png">
+</div>
+
+<div id="container">
+  <!-- POSTS + PAGINACIÓN -->
+  <div id="posts-container">
+    <section id="posts">
+      <p>Cargando posts...</p>
+    </section>
+    <div id="endImageContainer">
+      <img src="fin-del-blog.png" alt="Fin del blog">
+    </div>
+    <div id="pagination">
+      <span class="page-btn" onclick="prevPage()">◀</span>
+      <span id="pageNumber">Página 1</span>
+      <span class="page-btn" onclick="nextPage()">▶</span>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside>
+    <img src="https://64.media.tumblr.com/231c9257028215c4ded969835e060f91/d926048b57000bce-2b/s128x128u_c1/56e5fd8022e0f62cd8f5c5ffd73ec1f8d43a1dc2.pnj" class="avatar">
+
+    <strong>gammaRDZ's blog</strong><br>
+    "un poco de todo"<br><br>
+
+    <div class="sidebar-links">
+      <a href="https://gammardz.tumblr.com/">Inicio</a>
+      <a href="https://gammardz.tumblr.com/ask">Ask</a>
+      <a href="https://gammardz.tumblr.com/submit">Submit</a>
+      <a href="https://gammardz.tumblr.com/archive">Archive</a>
+    </div>
+
+    <div class="sidebar-links">
+      <span>solo estare subiendo cosas aca</span>
+    </div>
+
+    <div class="sidebar-links">
+      <span>probablemente dibujos y renders</span>
+    </div>
+
+    <div class="sidebar-links">
+      <a href="https://www.youtube.com/channel/UCVtkrUXx5DNBBcGEdIhjwBQ">youtube: gammaRDZ</a>
+    </div>
+
+    <div class="sidebar-links">
+      <span>mi <a href="https://www.youtube.com/channel/UCVtkrUXx5DNBBcGEdIhjwBQ">canal</a></span>
+    </div>
+
+    <!-- LAB -->
+    <div class="sidebar-lab">
+             Has encontrado el <a href="lab.html">laboratorio!</a>
+    </div>
+  </aside>
+</div>
+
+<audio id="clickSound">
+  <source src="click.mp3" type="audio/mpeg">
+</audio>
+
+<script src="https://simonwillison.net/code/wii.js"></script>
+
+<script>
+var blogName="gammardz";
+var apiKey="7ssDQBi15up6df48brKs6AH3B3QcRLzBqN3Cj3fpilE9NwbAlr";
+
+var page=0;
+var limit=12;
+
+var postsContainer=document.getElementById("posts");
+var pagination=document.getElementById("pagination");
+var pageNumber=document.getElementById("pageNumber");
+var endImageContainer=document.getElementById("endImageContainer");
+
+function playFeedback(){
+  var s=document.getElementById("clickSound");
+  if(s)s.play();
+  if(navigator.vibrate)navigator.vibrate(30);
+}
+
+function timeAgo(timestamp){
+  var now=Date.now();
+  var diff=now-new Date(timestamp).getTime();
+  var minutes=Math.floor(diff/(1000*60));
+  if(minutes<60)return minutes+" minutos";
+  var hours=Math.floor(minutes/60);
+  if(hours<24)return hours+" horas";
+  var days=Math.floor(hours/24);
+  return days+" días";
+}
+
+function cargarPosts(){
+  postsContainer.innerHTML="<p>Cargando...</p>";
+  var offset=page*limit;
+
+  fetch("https://api.tumblr.com/v2/blog/"+blogName+".tumblr.com/posts?api_key="+apiKey+"&limit="+limit+"&offset="+offset)
+  .then(res=>res.json())
+  .then(data=>{
+    var posts=data.response.posts;
+    postsContainer.innerHTML="";
+    endImageContainer.style.display="none";
+
+    if(posts.length===0){
+      endImageContainer.style.display="block";
+      pagination.style.display="flex"; // mantener paginación
+      return;
+    }
+
+    for(var i=0;i<posts.length;i++){
+      var post=posts[i];
+      var article=document.createElement("article");
+      var header=document.createElement("div");
+      header.className="post-header";
+      header.innerHTML=
+        '<img src="https://64.media.tumblr.com/231c9257028215c4ded969835e060f91/d926048b57000bce-2b/s128x128u_c1/56e5fd8022e0f62cd8f5c5ffd73ec1f8d43a1dc2.pnj">'+
+        "<strong>"+post.blog_name+"</strong>";
+      article.appendChild(header);
+
+      if(post.type==="text"){
+        if(post.title){
+          var h=document.createElement("h3");
+          h.innerHTML=post.title;
+          article.appendChild(h);
+        }
+        var d=document.createElement("div");
+        d.innerHTML=post.body;
+        article.appendChild(d);
+      }
+      if(post.type==="photo"){
+        for(var p=0;p<post.photos.length;p++){
+          var img=document.createElement("img");
+          img.src=post.photos[p].original_size.url;
+          article.appendChild(img);
+        }
+      }
+      var footer=document.createElement("div");
+      footer.className="post-footer";
+      footer.innerHTML="Publicado hace "+timeAgo(post.date)+" con "+post.note_count+" notas";
+      article.appendChild(footer);
+      postsContainer.appendChild(article);
+    }
+
+    pageNumber.innerHTML="Página "+(page+1);
+    pagination.style.display="flex";
+  });
+}
+
+function nextPage(){page++; playFeedback(); cargarPosts(); window.scrollTo(0,0);}
+function prevPage(){if(page>0){page--; playFeedback(); cargarPosts(); window.scrollTo(0,0);}}
+
+// Wii.js: cruceta y botones
+document.addEventListener("wii:buttondown", function(ev){
+  var btn=ev.detail.button;
+  if(btn==="up") window.scrollBy(0,-120);
+  if(btn==="down") window.scrollBy(0,120);
+  if(btn==="plus") nextPage();
+  if(btn==="minus") prevPage();
+  if(btn==="a") window.scrollTo(0,0);
+  if(btn==="b") window.scrollTo(0,document.body.scrollHeight);
+});
+cargarPosts();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wii Mii → DS Mii Converter</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    li { margin-bottom: 1em; background: #f9f9f9; padding: 0.5em; border-radius: 8px; display: flex; align-items: center; gap: 1em; }
+    pre { margin: 0; overflow-x: auto; background: #eee; padding: 0.2em 0.5em; border-radius: 4px; }
+    img { width: 64px; height: 64px; }
+    button { padding: 0.3em 0.6em; border-radius: 4px; border: none; background: #4CAF50; color: white; cursor: pointer; }
+    button:hover { background: #45a049; }
+  </style>
+</head>
+<body>
+  <h1>Wii Mii → DS Mii Converter</h1>
+  <form id="dataForm">
+    <input type="file" id="fileInput" />
+    <br><br>
+    <input type="text" id="miiDataInput" placeholder="Base64 or Hex Mii Data" style="width:300px"/>
+    <br><br>
+    <input type="submit" value="Convert to DS (.ncd)" />
+  </form>
+
+  <h2>Results</h2>
+  <ul id="outputList"></ul>
+
+<script>
+const DATA_LENGTH = 74;
+const NAME_OFFSET = 0x2;
+const MAX_NAME_LENGTH = 0x14;
+const SWAP_DESC_WII_TO_DS = [
+    { type: 1, count: 11 },  // U16
+    { type: 0, count: 10 },  // U8
+    { type: 1, count: 11 },
+    { type: 1, count: 10 }
+];
+
+function swapEndianArray(data, start, count, type) {
+    const size = type===0?1:type===1?2:4;
+    for(let i=0;i<count;i++){
+        const idx=start+i*size;
+        if(type===1){
+            const t=data[idx]; data[idx]=data[idx+1]; data[idx+1]=t;
+        }else if(type===2){
+            const t0=data[idx], t1=data[idx+1];
+            data[idx]=data[idx+3]; data[idx+1]=data[idx+2];
+            data[idx+2]=t1; data[idx+3]=t0;
+        }
+    }
+}
+function swapEndian(data, swapDesc){
+    let offset=0;
+    for(const desc of swapDesc){
+        swapEndianArray(data, offset, desc.count, desc.type);
+        offset+=desc.count*(desc.type===0?1:(desc.type===1?2:4));
+    }
+}
+function bytesToHex(bytes){return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();}
+function detectAndDecodeInput(input){
+    input=input.replace(/\s+/g,'');
+    const hex=/^[0-9a-fA-F]+$/;
+    if(hex.test(input)){
+        if(input.length%2!==0) throw new Error("Hex length must be even");
+        return new Uint8Array(input.match(/.{1,2}/g).map(b=>parseInt(b,16)));
+    }
+    try{ const bin=atob(input); return Uint8Array.from(bin,c=>c.charCodeAt(0)); }
+    catch(e){ throw new Error("Invalid Base64 or Hex"); }
+}
+function extractName(data, offset=NAME_OFFSET, maxLength=MAX_NAME_LENGTH){
+    let end=offset;
+    while(end<offset+maxLength){ if(data[end]===0x00 && data[end+1]===0x00) break; end+=2; }
+    return new TextDecoder('utf-16be').decode(data.slice(offset,end));
+}
+function padTo74Bytes(data){
+    if(data.length===74) return data;
+    else if(data.length<74){ const p=new Uint8Array(74); p.set(data); return p; }
+    else return data.slice(0,74);
+}
+
+function appendResult(dsData){
+    const ul=document.getElementById('outputList');
+    const li=document.createElement('li');
+
+    const name = extractName(dsData);
+    const infoDiv = document.createElement('div');
+    infoDiv.style.flex = '1';
+
+    const nameEl = document.createElement('div'); nameEl.textContent = name; nameEl.style.fontWeight='bold';
+    const hexEl = document.createElement('pre'); hexEl.textContent = bytesToHex(dsData);
+
+    infoDiv.appendChild(nameEl); infoDiv.appendChild(hexEl);
+
+    const img = document.createElement('img');
+    img.src=`https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(bytesToHex(dsData))}`;
+
+    const btn = document.createElement('button');
+    btn.textContent="Download .ncd";
+    btn.onclick=()=>{
+        const blob=new Blob([dsData],{type:'application/octet-stream'});
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download=`${name||"Mii"}.ncd`;
+        a.click();
+    };
+
+    li.appendChild(img);
+    li.appendChild(infoDiv);
+    li.appendChild(btn);
+    ul.appendChild(li);
+}
+
+async function processData(e){
+    e.preventDefault();
+    const fileInput=document.getElementById('fileInput');
+    const miiDataInput=document.getElementById('miiDataInput');
+
+    let rawData;
+    if(fileInput.files.length>0){
+        rawData=new Uint8Array(await fileInput.files[0].arrayBuffer());
+    } else if(miiDataInput.value.trim()!==''){
+        rawData=detectAndDecodeInput(miiDataInput.value);
+    } else { alert("Provide file or hex/base64"); return; }
+
+    const padded=padTo74Bytes(rawData);
+    const dsData=new Uint8Array(padded);
+    swapEndian(dsData, SWAP_DESC_WII_TO_DS);
+    appendResult(dsData);
+
+    fileInput.value=''; miiDataInput.value='';
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+    document.getElementById('dataForm').addEventListener('submit',processData);
+});
+</script>
+</body>
+</html>

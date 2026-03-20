@@ -1,0 +1,31 @@
+<!-- 1. Primero defines la configuración -->
+<script type="text/javascript">
+    var Module = { // libopenmpt usa el objeto 'Module' de Emscripten
+        onRuntimeInitialized: function() {
+            console.log("Librería cargada correctamente.");
+            window.player = new ChiptuneJsPlayer(new ChiptuneJsConfig(-1));
+            document.body.innerHTML += "<p style='color:green'>¡Librería lista! Toca para sonar.</p>";
+        }
+    };
+    // Mantenemos libopenmpt por compatibilidad con chiptune2.js
+    var libopenmpt = Module; 
+</script>
+
+<!-- 2. Luego cargas las librerías -->
+<script src="js/libopenmpt.js"></script>
+<script src="js/chiptune2.js"></script>
+
+<!-- 3. Finalmente el código de ejecución -->
+<script type="text/javascript">
+    function startMusic() {
+        if (!window.player) {
+            alert("La librería aún no termina de cargar. Espera un segundo.");
+            return;
+        }
+        
+        window.player.load("12th_warrior_remix.xm", function(buffer) {
+            window.player.play(buffer);
+        });
+    }
+    window.addEventListener('click', startMusic, { once: true });
+</script>

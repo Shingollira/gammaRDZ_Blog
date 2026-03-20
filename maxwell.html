@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Maxwell Show</title>
+<style>
+body {
+    margin: 0;
+    background: white;
+    text-align: center;
+}
+
+#maxwell {
+    width: 320px;
+    display: block;
+    margin-top: 50px;
+}
+button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 18px;
+}
+</style>
+</head>
+<body>
+
+<img id="maxwell" src="maxwell_frame1.png"> <!-- primer frame estático -->
+
+<button onclick="start()">¡Iniciar Maxwell!</button>
+
+<div id="audio"></div>
+
+<script>
+var started = false;
+
+function start() {
+    if (started) return;
+    started = true;
+
+    // reemplaza la imagen estática por el GIF animado
+    document.getElementById("maxwell").src = "maxwell.gif";
+
+    // audio vía plugin NL
+    document.getElementById("audio").innerHTML =
+        '<object type="audio/x-nl" data="maxwell.mp3" width="0" height="0" autostart="true" loop="true"></object>';
+}
+</script>
+
+</body>
+</html>

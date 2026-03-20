@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<title>MiiViewer</title>
+    <link rel="icon" href="/icon.gif" type="image/gif">
+  <meta charset="UTF-8">
+  <title>Subir y descargar múltiples archivos</title>
+</head>
+<body>
+
+  <h2>Subir archivos</h2>
+  <input type="file" id="fileInput" multiple>
+  <button onclick="guardarArchivos()">Guardar</button>
+
+  <h2>Archivos cargados</h2>
+  <ul id="lista"></ul>
+
+  <script>
+    let archivos = [];
+
+    function guardarArchivos() {
+      const input = document.getElementById("fileInput");
+
+      if (!input.files.length) return;
+
+      for (const file of input.files) {
+        archivos.push(file);
+      }
+
+      actualizarLista();
+      input.value = "";
+    }
+
+    function actualizarLista() {
+      const lista = document.getElementById("lista");
+      lista.innerHTML = "";
+
+      archivos.forEach((file, index) => {
+        const li = document.createElement("li");
+        const link = document.createElement("a");
+
+        link.textContent = file.name + " (" + Math.round(file.size / 1024) + " KB)";
+        link.href = URL.createObjectURL(file);
+        link.download = file.name;
+
+        li.appendChild(link);
+        lista.appendChild(li);
+      });
+    }
+  </script>
+
+</body>
+</html>body>
+</html>

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DS Mii to Wii Converter</title>
+</head>
+<body>
+<h1>DS Mii Format to Wii Format Converter</h1>
+<p>Drop a DS format (".ncd") Mii file or its 74-byte data in hex here.<br>
+Or drop a save file/state/memdump from Tomodachi Collection.</p>
+
+<form id="dataForm">
+  <input type="file" id="fileInput" />
+  <br>
+  <input type="text" id="miiDataInput" placeholder="Base64 or Hex Mii Data" />
+  <br>
+  <input type="submit" />
+</form>
+
+<h2>Result List</h2>
+<ul id="outputList"></ul>
+
+<script>
+const DATA_LENGTH = 74;
+const NAME_OFFSET = 0x2;
+const MAX_NAME_LENGTH = 0x14;
+const FFLI_SWAP_ENDIAN_TYPE_U8 = 0;
+const FFLI_SWAP_ENDIAN_TYPE_U16 = 1;
+const FFLI_SWAP_ENDIAN_TYPE_U32 = 2;
+
+const SWAP_ENDIAN_DESC_RFL = [
+  { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 11 },
+  { type: FFLI_SWAP_ENDIAN_TYPE_U8, count: 10 },
+  { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 11 },
+  { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 10 }
+];
+
+function swapEndian(data, swapDesc) {
+  let offset = 0;
+  for (let desc of swapDesc) {
+    swapEndianArray(data, offset, desc.count, desc.type);
+    offset += desc.count * (desc.type===FFLI_SWAP_ENDIAN_TYPE_U8 ? 1 : desc.type===FFLI_SWAP_ENDIAN_TYPE_U16 ? 2 : 4);
+  }
+}
+
+function swapEndianArray(data, start, count, type){
+  const size = type===FFLI_SWAP_ENDIAN_TYPE_U8 ? 1 : type===FFLI_SWAP_ENDIAN_TYPE_U16 ? 2 : 4;
+  for(let i=0;i<count;i++){
+    const index = start + i*size;
+    if(type===FFLI_SWAP_ENDIAN_TYPE_U16){
+      const t=data[index]; data[index]=data[index+1]; data[index+1]=t;
+    } else if(type===FFLI_SWAP_ENDIAN_TYPE_U32){
+      const t0=data[index], t1=data[index+1];
+      data[index]=data[index+3]; data[index+1]=data[index+2];
+      data[index+2]=t1; data[index+3]=t0;
+    }
+  }
+}
+
+function bytesToHex(bytes){ return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase(); }
+
+function detectAndDecodeInput(input){
+  input=input.replace(/\s+/g,'');
+  const hexRegex=/^[0-9a-fA-F]+$/;
+  if(hexRegex.test(input)){
+    if(input.length%2!==0) throw new Error("Invalid hex length");
+    return new Uint8Array(input.match(/.{1,2}/g).map(b=>parseInt(b,16)));
+  }
+  try{
+    const bin=atob(input);
+    return Uint8Array.from(bin,c=>c.charCodeAt(0));
+  } catch(e){ throw new Error("Invalid Base64 or Hex"); }
+}
+
+function padTo74Bytes(data){ 
+  if(data.length===74) return data;
+  if(data.length<74){ const p=new Uint8Array(74); p.set(data); return p; }
+  return data.slice(0,74);
+}
+
+function extractName(data, offset=NAME_OFFSET, maxLength=MAX_NAME_LENGTH){
+  let end=offset;
+  while(end<offset+maxLength){ if(data[end]===0x00 && data[end+1]===0x00) break; end+=2; }
+  return new TextDecoder('utf-16be').decode(data.slice(offset,end));
+}
+
+function getRandomPastelColor(){
+  const mix=[255,255,224];
+  const base=[Math.random()*256,Math.random()*256,Math.random()*256];
+  return `rgb(${base.map((v,i)=>Math.round((v+mix[i])/2)).join(',')})`;
+}
+
+function downloadFile(data, filename){
+  const blob=new Blob([data],{type:'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function appendToList(hexData,name,dsBlock,wiiBlock){
+  const ul=document.getElementById('outputList');
+  const li=document.createElement('li');
+  const pre=document.createElement('pre');
+  pre.textContent=hexData;
+  li.textContent=name; li.appendChild(pre);
+  const innerUl=document.createElement('ul');
+  const innerLi=document.createElement('li');
+  innerLi.innerHTML=`<img loading="lazy" src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(hexData)}"><br>`;
+  innerUl.appendChild(innerLi); li.appendChild(innerUl);
+
+  const btnDS=document.createElement('button');
+  btnDS.textContent='Descargar .ncd (DS)';
+  btnDS.onclick=()=>downloadFile(dsBlock, `${name||'Mii'}.ncd`);
+  const btnWii=document.createElement('button');
+  btnWii.textContent='Descargar .rcd (Wii)';
+  btnWii.onclick=()=>downloadFile(wiiBlock, `${name||'Mii'}.rcd`);
+
+  li.appendChild(btnDS); li.appendChild(btnWii);
+  li.style.color=getRandomPastelColor();
+  ul.insertBefore(li,ul.firstChild);
+}
+
+function processAndDisplaySwappedData(blocks){
+  blocks.forEach(block=>{
+    const swapped=new Uint8Array(block);
+    swapEndian(swapped,SWAP_ENDIAN_DESC_RFL);
+    const hex=bytesToHex(swapped);
+    const name=extractName(swapped);
+    appendToList(hex,name,block,swapped);
+  });
+  if(blocks.length===0){
+    const li=document.createElement('li');
+    li.textContent='No valid Mii data found.'; document.getElementById('outputList').insertBefore(li,document.getElementById('outputList').firstChild);
+  }
+}
+
+function areAllZeros(arr){ return arr.every(b=>b===0); }
+
+function isValidMiiBlock(block){
+  const invalidPrefix=[0x74,0x73,0x75,0x6D,0x61,0x6E,0x6F,0x67,0x6F,0x73,0x61,0x6B,0x61,0x74,0x61];
+  if(areAllZeros(block)) return false;
+  if(block.slice(0,invalidPrefix.length).every((b,i)=>b===invalidPrefix[i])) return false;
+  return true;
+}
+
+function extractMiiDataBlocks(data){
+  const sig=[0x4D,0x61,0x61,0x4D,0x69,0x69,0x4D,0x75,0x75,0x4D,0x65,0x65,0x4D,0x6F,0x6F,0x00];
+  const blocks=[];
+  for(let i=0;i<=data.length-sig.length-DATA_LENGTH;i++){
+    if(sig.every((b,j)=>data[i+j]===b)){
+      const block=data.slice(i+sig.length,i+sig.length+DATA_LENGTH);
+      if(isValidMiiBlock(block)) blocks.push(block);
+      i+=DATA_LENGTH-1;
+    }
+  }
+  return blocks;
+}
+
+function deduplicateMiis(blocks){
+  const seen=new Set();
+  const unique=[];
+  blocks.forEach(b=>{ const h=bytesToHex(b); if(!seen.has(h)){ seen.add(h); unique.push(b); } });
+  return unique;
+}
+
+function processSave(arrayBuffer){
+  const data=new Uint8Array(arrayBuffer);
+  const blocks=deduplicateMiis(extractMiiDataBlocks(data));
+  processAndDisplaySwappedData(blocks);
+}
+
+async function processData(event){
+  event.preventDefault();
+  const fileInput=document.getElementById('fileInput');
+  const miiDataInput=document.getElementById('miiDataInput');
+
+  if(fileInput.files.length>0){
+    const file=fileInput.files[0];
+    const reader=new FileReader();
+    reader.onload=function(e){
+      let data=new Uint8Array(e.target.result);
+      if(data.length>DATA_LENGTH) processSave(e.target.result);
+      else processAndDisplaySwappedData([padTo74Bytes(data)]);
+    };
+    reader.readAsArrayBuffer(file);
+  } else if(miiDataInput.value.trim()!==''){
+    try{
+      const decoded=padTo74Bytes(detectAndDecodeInput(miiDataInput.value));
+      processAndDisplaySwappedData([decoded]);
+    } catch(err){ alert(err.message); }
+  } else alert("Please provide a file or Mii data.");
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const form=document.getElementById('dataForm');
+  form.addEventListener('submit',processData);
+});
+</script>
+</body>
+</html>nc function handleWiiDS(){ clearList('wiiResults'); const fileInput=document.getElementById('wiiFileInput'); if(fileInput.files.length===0){ showMessage('wiiResults','Sube un archivo .rcd/.mii/.mae/.miigx'); return; } for(const f of fileInput.files){ try{ const arr = new Uint8Array(await f.arrayBuffer()); // strip common RCD header if present
+    let payload = arr;
+    if(arr.length>8 && arr[0]===0x52 && arr[1]===0x43 && arr[2]===0x44){ // starts with 'RCD'
+      // assume header then raw data
+      payload = arr.slice(8); // skip header used above
+    }
+    // if payload is longer than 74, try to find 74-byte region (take first 74)
+    let dsBlock = padTo74Bytes(payload.slice(0,DATA_LENGTH));
+    // Many Wii files store in different endian; attempt reverse-swap to DS format
+    try{ dsBlock = convertWiiToDs(dsBlock); }catch(e){ /* ignore and use raw */ }
+    const hex = bytesToHex(dsBlock);
+    const name = extractName(dsBlock);
+    const ul=document.getElementById('wiiResults'); const li=document.createElement('li'); li.textContent = name + ' — ' + hex.slice(0,32)+'...'; const btn = document.createElement('button'); btn.textContent='Descargar .ncd'; btn.onclick=()=>downloadBytes(dsBlock, name+'.ncd'); li.appendChild(btn); ul.appendChild(li);
+  }catch(err){ showMessage('wiiResults','Error leyendo archivo: '+err.message); } }
+}
+function convertWiiToDs(wiiBlock){ const copy = new Uint8Array(wiiBlock); swapEndian(copy, reverseSwapDesc(SWAP_ENDIAN_DESC_RFL)); return padTo74Bytes(copy); }
+
+// ---------- Sección C: Insertar Miis en save (editar en memoria, opción 2) ----------
+let currentSave = null; // Uint8Array
+let modifiedSave = null;
+
+document.getElementById('formInsert').addEventListener('submit', function(e){ e.preventDefault(); handleInsert(); });
+async function handleInsert(){ const destInput = document.getElementById('saveDestInput'); const sourceInput = document.getElementById('saveSourceInput'); const statusDiv = document.getElementById('insertStatus'); statusDiv.textContent=''; if(destInput.files.length===0){ statusDiv.textContent='Sube primero el save destino (.sav)'; return; }
+ // load destination if not loaded or different file
+ try{ currentSave = new Uint8Array(await destInput.files[0].arrayBuffer()); modifiedSave = new Uint8Array(currentSave); }catch(err){ statusDiv.textContent='Error leyendo save destino: '+err.message; return; }
+ if(sourceInput.files.length===0){ statusDiv.textContent='Sube al menos un .ncd o un save fuente con Miis para insertar'; return; }
+ // for each source file: if .ncd (len 74 or >=74?) treat as single block; if .sav treat as source save and extract blocks
+ let insertedCount = 0;
+ for(const f of sourceInput.files){ try{ const arr = new Uint8Array(await f.arrayBuffer()); if(arr.length===DATA_LENGTH){ // single .ncd
+       const block = arr;
+       if(insertBlockIntoModifiedSave(block)) insertedCount++; else { statusDiv.textContent = 'No se encontró espacio para insertar (se agregará al final) — procediendo a añadir.'; insertBlockIntoModifiedSave(block,true); insertedCount++; }
+     } else if(arr.length>DATA_LENGTH && containsSaveSignature(arr)){ // source save — extract blocks
+       const blocks = dedupeBlocks(extractMiiBlocksFromData(arr));
+       if(blocks.length===0){ statusDiv.textContent = 'No se encontraron Miis en el save fuente: '+f.name; }
+       for(const b of blocks){ if(insertBlockIntoModifiedSave(b.block)) insertedCount++; else { insertBlockIntoModifiedSave(b.block,true); insertedCount++; } }
+     } else if(arr.length>DATA_LENGTH && !containsSaveSignature(arr)){
+       // maybe the user uploaded an .rcd or Wii file — try convert to DS then insert
+       let payload = arr; if(arr.length>8 && arr[0]===0x52 && arr[1]===0x43 && arr[2]===0x44) payload = arr.slice(8);
+       const ds = padTo74Bytes(payload.slice(0,DATA_LENGTH)); const dsConverted = convertWiiToDs(ds);
+       if(insertBlockIntoModifiedSave(dsConverted)) insertedCount++; else { insertBlockIntoModifiedSave(dsConverted,true); insertedCount++; }
+     } else { statusDiv.textContent = 'Formato de archivo no reconocido: '+f.name; }
+ }catch(err){ statusDiv.textContent = 'Error procesando '+f.name+': '+err.message; }
+ }
+ statusDiv.textContent = `Miis insertados en memoria: ${insertedCount}`;
+ if(modifiedSave) document.getElementById('downloadModifiedSave').disabled = false;
+}
+
+function containsSaveSignature(arr){ for(let i=0;i<=arr.length-SAVE_SIGNATURE.length;i++){ let ok=true; for(let j=0;j<SAVE_SIGNATURE.length;j++){ if(arr[i+j]!==SAVE_SIGNATURE[j]){ ok=false; break; } } if(ok) return true; } return false; }
+
+// Insert logic: try to find existing slots and replace; if none left, append signature+block at end
+function insertBlockIntoModifiedSave(block, appendIfNoSlot=false){ if(!modifiedSave) return false; // no save loaded
+ // find existing signature offsets
+ const offsets = [];
+ for(let i=0;i<=modifiedSave.length-SAVE_SIGNATURE.length-DATA_LENGTH;i++){
+   let match=true; for(let j=0;j<SAVE_SIGNATURE.length;j++){ if(modifiedSave[i+j]!==SAVE_SIGNATURE[j]){ match=false; break; } }
+   if(match){ offsets.push(i+SAVE_SIGNATURE.length); i+=SAVE_SIGNATURE.length+DATA_LENGTH-1; }
+ }
+ // find a slot that is empty or contains zeroes
+ for(const slot of offsets){ let empty = true; for(let k=0;k<DATA_LENGTH;k++){ if(modifiedSave[slot+k]!==0){ empty=false; break; } } if(empty){ modifiedSave.set(block, slot); return true; } }
+ // if no empty slot but there are offsets, overwrite the first
+ if(offsets.length>0){ modifiedSave.set(block, offsets[0]); return true; }
+ // else append at end
+ if(appendIfNoSlot){ const newLen = modifiedSave.length + SAVE_SIGNATURE.length + DATA_LENGTH; const out = new Uint8Array(newLen); out.set(modifiedSave,0); out.set(SAVE_SIGNATURE, modifiedSave.length); out.set(block, modifiedSave.length + SAVE_SIGNATURE.length); modifiedSave = out; return true; }
+ return false;
+}
+
+// Download modified save button
+document.getElementById('downloadModifiedSave').addEventListener('click', function(){ if(!modifiedSave){ alert('No hay save modificado en memoria'); return; } const blob = new Blob([modifiedSave], {type:'application/octet-stream'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tomodachi_modified.sav'; a.click(); });
+
+// ---------- Helpers ----------
+function downloadBytes(bytes, filename){ const blob = new Blob([bytes], {type:'application/octet-stream'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); }
+function clearList(id){ const ul=document.getElementById(id); ul.innerHTML=''; }
+function showMessage(id, text){ const ul=document.getElementById(id); const li=document.createElement('li'); li.textContent = text; ul.appendChild(li); }
+
+</script></body>
+</html>

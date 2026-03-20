@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mii Manager RCD — render + rename + edit bytes + ZIP</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:18px;background:#f6f8fb;color:#111}
+  h1{margin:0 0 8px}
+  p.lead{margin:4px 0 16px;color:#333}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .mii-container{display:flex;flex-wrap:wrap;gap:12px}
+  .mii-card{width:160px;background:#fff;border-radius:10px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);text-align:center}
+  .mii-card img{width:96px;height:96px;border-radius:50%;object-fit:cover;background:#eee}
+  .mii-name{font-weight:600;margin:6px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-row{display:flex;gap:6px;align-items:center;justify-content:center}
+  .file-row input{width:110px;padding:6px;border-radius:6px;border:1px solid #ccc;text-align:center}
+  .file-row input.error{border-color:#e74c3c;background:#fff2f1}
+  button.primary{background:#0b84ff;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+  button.primary:disabled{opacity:.5;cursor:not-allowed}
+  small.hint{display:block;margin-top:6px;color:#666}
+</style>
+</head>
+<body>
+  <h1>Mii Manager RCD (Wii)</h1>
+  <p class="lead">Sube tus archivos <code>.rcd</code> (hasta 60). Verás render, nombre, y podrás renombrar a <code>cpu_mii_0XX.rcd</code>. Al descargar ZIP, se reemplazan los bytes <code>0x18–0x1B</code> por <code>20 00 00 00</code>.</p>
+
+  <div class="controls">
+    <input id="fileInput" type="file" accept=".rcd" multiple />
+    <button id="btnClear" type="button">Limpiar</button>
+    <button id="btnZip" class="primary" disabled>Descargar ZIP renombrado</button>
+  </div>
+
+  <div id="miiContainer" class="mii-container"></div>
+
+  <!-- JSZip (para crear ZIP) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script>
+/* =========================================
+   Config / helpers (basado en tu conversor)
+   ========================================= */
+const MAX_MII = 60;
+const DATA_LEN = 74;
+const NAME_OFFSET = 0x2;
+const MAX_NAME_BYTES = 0x14; // 20 bytes
+// Swap descriptor (mismo que usaste)
+const FFLI_U8 = 0, FFLI_U16 = 1, FFLI_U32 = 2;
+const SWAP_DESC_RFL = [
+  { type: FFLI_U16, count: 11 },
+  { type: FFLI_U8,  count: 10 },
+  { type: FFLI_U16, count: 11 },
+  { type: FFLI_U16, count: 10 }
+];
+
+const fileInput = document.getElementById('fileInput');
+const miiContainer = document.getElementById('miiContainer');
+const btnZip = document.getElementById('btnZip');
+const btnClear = document.getElementById('btnClear');
+
+let miiList = []; // {file, dataUint8, number (0..59), inputEl, name, swappedBlock}
+
+/* Utility: bytes -> hex uppercase */
+function bytesToHex(bytes){
+  return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
+/* Swap helpers (copiados/adaptados) */
+function swapEndianArray(data, start, count, type){
+  const size = (type===FFLI_U8?1: type===FFLI_U16?2:4);
+  for(let i=0;i<count;i++){
+    const idx = start + (i*size);
+    if(type===FFLI_U16){
+      const a = data[idx], b = data[idx+1];
+      data[idx]=b; data[idx+1]=a;
+    } else if(type===FFLI_U32){
+      const a0=data[idx], a1=data[idx+1], a2=data[idx+2], a3=data[idx+3];
+      data[idx]=a3; data[idx+1]=a2; data[idx+2]=a1; data[idx+3]=a0;
+    }
+  }
+}
+function swapEndian(data, swapDesc){
+  let offset=0;
+  for(let desc of swapDesc){
+    swapEndianArray(data, offset, desc.count, desc.type);
+    offset += desc.count * (desc.type===FFLI_U8?1: desc.type===FFLI_U16?2:4);
+  }
+}
+
+/* Extract UTF-16BE name at NAME_OFFSET */
+function extractNameFromBlock(block){
+  // block: Uint8Array (assumed BE after swap is correct)
+  let end = NAME_OFFSET;
+  while(end < NAME_OFFSET + MAX_NAME_BYTES){
+    if(block[end]===0x00 && block[end+1]===0x00) break;
+    end += 2;
+  }
+  const nameBytes = block.slice(NAME_OFFSET, end);
+  try {
+    return new TextDecoder('utf-16be').decode(nameBytes) || '(sin nombre)';
+  } catch(e){
+    return '(sin nombre)';
+  }
+}
+
+/* Replace bytes 0x18..0x1B with 20 00 00 00 */
+function patchBytesForZip(origUint8){
+  const copy = new Uint8Array(origUint8); // cloned
+  if(copy.length > 0x1B){
+    copy[0x18] = 0x20;
+    copy[0x19] = 0x00;
+    copy[0x1A] = 0x00;
+    copy[0x1B] = 0x00;
+  }
+  return copy;
+}
+
+/* Create Mii render URL using the same API you provided:
+   We will pass the HEX of the swapped 74-byte block (as your converter did).
+*/
+function renderUrlFromFileData(u8){
+  // Build a 74-byte block from file: take first 74 bytes or pad/truncate
+  let block = (u8.length >= DATA_LEN) ? u8.slice(0, DATA_LEN) : (()=>{
+    const p = new Uint8Array(DATA_LEN); p.set(u8); return p;
+  })();
+
+  // Do endian swap on a copy so we don't modify original
+  const swapped = new Uint8Array(block);
+  swapEndian(swapped, SWAP_DESC_RFL);
+
+  const hex = bytesToHex(swapped);
+  // same endpoint from tu HTML:
+  return `https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(hex)}`;
+}
+
+/* Validate input name cpu_mii_0XX.rcd and return number or null */
+function parseCpuName(val){
+  const m = val.match(/^cpu_mii_0(\d{2})\.rcd$/);
+  if(!m) return null;
+  const n = parseInt(m[1],10);
+  if(isNaN(n) || n<0 || n>59) return null;
+  return n;
+}
+
+/* UI: clear */
+btnClear.addEventListener('click', ()=> {
+  miiList = [];
+  miiContainer.innerHTML = '';
+  fileInput.value = '';
+  btnZip.disabled = true;
+});
+
+/* When files are selected */
+fileInput.addEventListener('change', async (ev)=>{
+  const files = Array.from(ev.target.files).slice(0, MAX_MII);
+  if(files.length === 0) return;
+  miiList = [];
+  miiContainer.innerHTML = '';
+
+  // prepare entries
+  for(let i=0;i<files.length;i++){
+    const file = files[i];
+    const arrayBuffer = await file.arrayBuffer();
+    const u8 = new Uint8Array(arrayBuffer);
+
+    // prepare swapped block & name for display
+    const block = (u8.length >= DATA_LEN) ? u8.slice(0, DATA_LEN) : (()=>{ const p=new Uint8Array(DATA_LEN); p.set(u8); return p; })();
+    const swapped = new Uint8Array(block);
+    swapEndian(swapped, SWAP_DESC_RFL);
+    const miiName = extractNameFromBlock(swapped);
+
+    const number = i; // initial assignment 0..n-1
+    const filenameDefault = `cpu_mii_0${String(number).padStart(2,'0')}.rcd`;
+
+    // create card
+    const card = document.createElement('div'); card.className = 'mii-card';
+
+    const img = document.createElement('img');
+    img.alt = miiName;
+    img.loading = 'lazy';
+    img.src = renderUrlFromFileData(u8); // uses swapped block hex for render
+    card.appendChild(img);
+
+    const pName = document.createElement('div'); pName.className = 'mii-name';
+    pName.textContent = miiName;
+    card.appendChild(pName);
+
+    const row = document.createElement('div'); row.className = 'file-row';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = filenameDefault;
+
+    // attach change handler later
+    row.appendChild(inp);
+    card.appendChild(row);
+
+    miiContainer.appendChild(card);
+
+    // store
+    const entry = { file, data: u8, number, inputEl: inp, name: miiName, card, swappedBlock: swapped };
+    miiList.push(entry);
+
+    // event: when user edits filename
+    inp.addEventListener('change', ()=>{
+      const parsed = parseCpuName(inp.value.trim());
+      if(parsed === null){
+        inp.classList.add('error');
+        return;
+      } else inp.classList.remove('error');
+
+      // found current entry index
+      const current = entry;
+      // find if some other entry already uses that number
+      const conflict = miiList.find(e => e !== current && e.number === parsed);
+      if(conflict){
+        // swap numbers
+        const old = current.number;
+        current.number = parsed;
+        conflict.number = old;
+        // update inputs to reflect swap
+        current.inputEl.value = `cpu_mii_0${String(current.number).padStart(2,'0')}.rcd`;
+        conflict.inputEl.value = `cpu_mii_0${String(conflict.number).padStart(2,'0')}.rcd`;
+      } else {
+        current.number = parsed;
+        current.inputEl.value = `cpu_mii_0${String(parsed).padStart(2,'0')}.rcd`;
+      }
+
+      // ensure no duplicates anywhere (defensive)
+      // if duplicates found, auto-fix by searching free number (unlikely due to swap logic)
+      const used = new Set();
+      for(const e of miiList){
+        if(used.has(e.number)){
+          // find first free 0..59
+          for(let n=0;n<60;n++){
+            if(![...miiList].some(x=>x.number===n)){
+              e.number = n;
+              e.inputEl.value = `cpu_mii_0${String(n).padStart(2,'0')}.rcd`;
+              break;
+            }
+          }
+        }
+        used.add(e.number);
+      }
+    });
+  } // end for files
+
+  // Enable ZIP button if we have at least 1 file
+  btnZip.disabled = miiList.length === 0;
+});
+
+/* ZIP generation: patch bytes and add to zip with the currently assigned names */
+btnZip.addEventListener('click', async ()=>{
+  if(miiList.length === 0) return alert('No hay archivos cargados.');
+  // confirm all numbers valid and unique
+  const seen = new Set();
+  for(const e of miiList){
+    if(e.number == null || isNaN(e.number) || e.number < 0 || e.number > 59){
+      return alert('Hay números inválidos. Usa cpu_mii_0XX.rcd (00–59).');
+    }
+    if(seen.has(e.number)) return alert('Hay números duplicados. Asegúrate de que no haya duplicados.');
+    seen.add(e.number);
+  }
+
+  const zip = new JSZip();
+  for(const e of miiList){
+    // Patch bytes 0x18..0x1B
+    const patched = patchBytesForZip(e.data);
+    const filename = `cpu_mii_0${String(e.number).padStart(2,'0')}.rcd`;
+    zip.file(filename, patched);
+  }
+
+  // generate blob and download
+  try {
+    const blob = await zip.generateAsync({type:'blob'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Miis_Renombrados_Patched.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch(err){
+    alert('Error creando ZIP: ' + err.message);
+  }
+});
+
+</script>
+</body>
+</html>

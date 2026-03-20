@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de Miis Wii con ZIP y extensiones</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding:20px; max-width:720px; }
+  ul { list-style:none; padding:0; display:flex; flex-wrap:wrap; gap:10px; }
+  li { border:1px solid #ccc; padding:10px; text-align:center; width:100px; }
+  img { display:block; margin:5px auto; width:64px; height:64px; }
+  input, select { margin-bottom:10px; display:block; width:100%; }
+  .blocks { display:flex; gap:10px; margin-bottom:10px; }
+  .block { flex:1; }
+  textarea { width:100%; font-family: monospace; height:40px; }
+  button { margin-top:10px; padding:5px 10px; }
+</style>
+</head>
+<body>
+<h1>Editor de Miis Wii con ZIP y extensiones</h1>
+<p>Sube varios archivos .rcd/.rsd, edita los 8 bytes anteriores y descarga todos con el nombre del Mii y la extensión deseada.</p>
+
+<input type="file" id="fileInput" multiple>
+
+<div class="blocks">
+  <div class="block">
+    <label>Bloque 1 (4 bytes)</label>
+    <textarea id="block1"></textarea>
+  </div>
+  <div class="block">
+    <label>Bloque 2 (4 bytes)</label>
+    <textarea id="block2"></textarea>
+  </div>
+</div>
+
+<label>Extensión de salida:</label>
+<select id="extSelect">
+  <option value="rcd">.rcd</option>
+  <option value="mii">.mii</option>
+  <option value="miigx">.miigx</option>
+</select>
+
+<button id="downloadBtn">Descargar ZIP de Miis editados</button>
+
+<ul id="outputList"></ul>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const fileInput = document.getElementById('fileInput');
+const block1Input = document.getElementById('block1');
+const block2Input = document.getElementById('block2');
+const extSelect = document.getElementById('extSelect');
+const outputList = document.getElementById('outputList');
+const downloadBtn = document.getElementById('downloadBtn');
+
+let miisData = [];
+const editableIndices = [0x18,0x19,0x1A,0x1B, 0x1C,0x1D,0x1E,0x1F];
+
+function padTo74Bytes(data) {
+  return data.length < 74 ? new Uint8Array([...data, ...new Array(74 - data.length).fill(0)]) : data.slice(0,74);
+}
+
+function extractMiiName(data) {
+  try {
+    const nameBytes = data.slice(2, 2+20);
+    return new TextDecoder('utf-16be').decode(nameBytes).replace(/\0/g,'') || 'Unknown';
+  } catch(e) { return 'Unknown'; }
+}
+
+function dataToHex(data) {
+  return Array.from(data).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function hexToData(hex) {
+  const cleanHex = hex.replace(/\s+/g,'');
+  const arr = [];
+  for(let i=0;i<cleanHex.length;i+=2){
+    arr.push(parseInt(cleanHex.substr(i,2),16));
+  }
+  return new Uint8Array(arr);
+}
+
+function addMiiToList(fileName, miiName, data) {
+  const li = document.createElement('li');
+  li.innerHTML = `<strong>${miiName}</strong><br>${fileName}<br>
+                  <img src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(
+                    dataToHex(data)
+                  )}" width="64" height="64">`;
+  outputList.appendChild(li);
+}
+
+function renderMiis() {
+  outputList.innerHTML = '';
+  for(let i=0;i<miisData.length;i++){
+    const {fileName, data} = miisData[i];
+    const miiName = extractMiiName(data);
+    addMiiToList(fileName, miiName, data);
+  }
+}
+
+function showEditableBytes() {
+  if(miisData.length === 0) return;
+  const data = miisData[0].data;
+  block1Input.value = Array.from(data.slice(editableIndices[0],editableIndices[0]+4)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+  block2Input.value = Array.from(data.slice(editableIndices[4],editableIndices[4]+4)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+}
+
+function applyEditableBytes() {
+  if(miisData.length === 0) return;
+  const hex1 = block1Input.value.replace(/\s+/g,'');
+  const hex2 = block2Input.value.replace(/\s+/g,'');
+  if(hex1.length !== 8 || hex2.length !== 8) return;
+  const editedData = hexToData(hex1 + hex2);
+  for(let i=0;i<miisData.length;i++){
+    const target = miisData[i].data;
+    editableIndices.forEach((idx,j) => { target[idx] = editedData[j]; });
+  }
+  renderMiis();
+}
+
+fileInput.addEventListener('change', async () => {
+  miisData = [];
+  const files = Array.from(fileInput.files);
+  for(let i=0;i<files.length;i++){
+    const file = files[i];
+    const arrayBuffer = await file.arrayBuffer();
+    const data = padTo74Bytes(new Uint8Array(arrayBuffer));
+    miisData.push({fileName: file.name, data});
+  }
+  showEditableBytes();
+  renderMiis();
+});
+
+block1Input.addEventListener('input', applyEditableBytes);
+block2Input.addEventListener('input', applyEditableBytes);
+
+// Descarga ZIP con nombre de Mii y extensión elegida
+downloadBtn.addEventListener('click', async () => {
+  if(miisData.length === 0) return alert('No hay Miis cargados');
+  const zip = new JSZip();
+  const ext = extSelect.value;
+  miisData.forEach(mii => {
+    const name = extractMiiName(mii.data) || 'Unknown';
+    zip.file(`${name}.${ext}`, mii.data);
+  });
+  const content = await zip.generateAsync({type:"blob"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = "Miis_editados.zip";
+  a.click();
+});
+</script>
+</body>
+</html>
+<a href="https://riitag.t0g3pii.de/user/1294064411811647560">
+<img src="https://riitag.t0g3pii.de/1294064411811647560/tag.max.png" alt="RiiTag" /></a>

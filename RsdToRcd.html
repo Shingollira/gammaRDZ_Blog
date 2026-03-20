@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>Convertir Mii RSD → RCD (multiarchivo)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; padding: 20px; max-width:720px; }
+    label, button { display:block; margin-top: 10px; }
+    .info { margin-top:10px; color:#333; }
+    .warn { color: #a33; }
+  </style>
+</head>
+<body>
+<a href="https://riitag.t0g3pii.de/user/1294064411811647560">
+<img src="https://riitag.t0g3pii.de/1294064411811647560/tag.max.png" alt="RiiTag" /></a>
+  <h1>Convertir Mii RSD → RCD (multiarchivo)</h1>
+  <p>Selecciona uno o más archivos <strong>.rsd</strong>. El script quitará los 2 últimos bytes y descargará cada uno como <code>.rcd</code>.</p>
+
+  <input id="fileInput" type="file" accept="*/*" multiple/>
+  <button id="convertBtn">Convertir y descargar</button>
+
+  <div id="status" class="info"></div>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const convertBtn = document.getElementById('convertBtn');
+    const status = document.getElementById('status');
+
+    function setStatus(text, isWarn=false) {
+      status.textContent = text;
+      status.className = isWarn ? 'info warn' : 'info';
+    }
+
+    convertBtn.addEventListener('click', () => {
+      const files = fileInput.files;
+      if (!files.length) return setStatus('Selecciona primero al menos un archivo.', true);
+
+      setStatus('Procesando archivos...');
+
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const arr = new Uint8Array(reader.result);
+          if (arr.length < 2) {
+            setStatus(`Error: ${file.name} demasiado pequeño (<2 bytes).`, true);
+            return;
+          }
+          const trimmed = arr.slice(0, arr.length - 2);
+
+          // Nombre de salida
+          const name = file.name.replace(/\.[^/.]+$/, "") + ".rcd";
+
+          // Descargar blob
+          const blob = new Blob([trimmed], {type: 'application/octet-stream'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+
+          setStatus(`Procesado: ${file.name} → ${name} (${trimmed.length} bytes)`);
+        };
+        reader.onerror = () => setStatus(`Error leyendo ${file.name}`, true);
+        reader.readAsArrayBuffer(file);
+      });
+    });
+  </script>
+</body>
+</html>

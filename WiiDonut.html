@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Wii_Donut</title>
+<link rel="icon" href="homebrew.jpeg" type="image/jpg">
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center; /* horizontal */
+  align-items: center;     /* vertical */
+  background: black;
+  font-family: monospace;
+}
+
+pre{
+  color:white;
+  margin:0;
+  display:block;
+}
+</style>
+</head>
+
+<body>
+
+<pre id="donut"></pre>
+
+<!-- CONFIG LIBOPENMPT -->
+<script>
+var Module = {
+  onRuntimeInitialized:function(){
+    window.player = new ChiptuneJsPlayer(new ChiptuneJsConfig(-1));
+  }
+};
+var libopenmpt = Module;
+</script>
+
+<script src="js/libopenmpt.js"></script>
+<script src="js/chiptune2.js"></script>
+
+<script>
+/* ajustar tamaño de letra */
+function resizeDonut(){
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var donutWidth = 80;
+    var donutHeight = 22;
+    var sizeW = w / donutWidth;
+    var sizeH = h / donutHeight;
+    var size = Math.min(sizeW, sizeH);
+    var pre = document.getElementById("donut");
+    pre.style.fontSize = size + "px";
+    pre.style.lineHeight = size + "px";
+}
+
+window.addEventListener("resize", resizeDonut);
+document.addEventListener('fullscreenchange', resizeDonut);
+
+/* Wake Lock API para mantener pantalla encendida */
+let wakeLock = null;
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+                console.log('Wake Lock liberado');
+            });
+            console.log('Wake Lock activo');
+        }
+    } catch (err) {
+        console.error(`${err.name}, ${err.message}`);
+    }
+}
+
+/* música en bucle */
+function startMusic(){
+    if(!window.player) return;
+    window.player.load("music.mod", function(buffer){
+        function playLoop(){
+            window.player.play(buffer, { onEnded: playLoop });
+        }
+        playLoop();
+    });
+}
+
+/* donut ASCII */
+function startDonut(){
+    if (window.donutInterval) return; // evita duplicar
+    var A=0, B=0;
+    window.donutInterval = setInterval(function(){
+        var b=[], z=[];
+        for(var k=0;k<1760;k++){
+            b[k]=k%80==79 ? "\n":" ";
+            z[k]=0;
+        }
+        for(var j=0;j<6.28;j+=0.07){
+        for(var i=0;i<6.28;i+=0.02){
+            var c=Math.sin(i), d=Math.cos(j), e=Math.sin(A), f=Math.sin(j),
+                g=Math.cos(A), h=d+2, D=1/(c*h*e+f*g+5),
+                l=Math.cos(i), m=Math.cos(B), n=Math.sin(B),
+                t=c*h*g-f*e,
+                x=0|40+30*D*(l*h*m-t*n),
+                y=0|12+15*D*(l*h*n+t*m),
+                o=x+80*y,
+                N=0|8*((f*e-c*d*g)*m-c*d*e-f*g-l*d*n);
+            if(y<22 && y>=0 && x>=0 && x<80 && D>z[o]){
+                z[o]=D;
+                b[o]=".,-~:;=!*#$@"[N>0?N:0];
+            }
+        }}
+        document.getElementById("donut").textContent=b.join("");
+        A+=0.04; B+=0.02;
+    },50);
+}
+
+/* iniciar todo y fullscreen */
+function startAll(){
+    if (!window.started){
+        startMusic();
+        startDonut();
+        requestWakeLock(); // activar wake lock
+        window.started = true;
+    }
+    const elem = document.documentElement;
+    if (!document.fullscreenElement) {
+        if (elem.requestFullscreen) elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
+    }
+}
+
+window.addEventListener("click", startAll);
+</script>
+
+</body>
+</html>

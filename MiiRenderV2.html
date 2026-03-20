@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vista previa de Miis Wii</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding:20px; max-width:720px; }
+    ul { list-style:none; padding:0; }
+    li { margin-bottom:15px; border-bottom:1px solid #ccc; padding-bottom:10px; }
+    img { display:block; margin-top:5px; }
+    input { margin-bottom:10px; }
+  </style>
+</head>
+<body>
+  <h1>Vista previa de Miis Wii</h1>
+  <p>Sube varios archivos .rcd/.rsd para ver el nombre del archivo, nombre del Mii y render.</p>
+
+  <input type="file" id="fileInput" multiple>
+  <ul id="outputList"></ul>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const outputList = document.getElementById('outputList');
+
+    function padTo74Bytes(data) {
+      return data.length < 74 ? new Uint8Array([...data, ...new Array(74 - data.length).fill(0)]) : data.slice(0,74);
+    }
+
+    function extractMiiName(data) {
+      try {
+        const nameBytes = data.slice(2, 2+20);
+        return new TextDecoder('utf-16be').decode(nameBytes).replace(/\0/g,'');
+      } catch(e) { return 'Unknown'; }
+    }
+
+    function addMiiToList(fileName, miiName, data) {
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>Archivo:</strong> ${fileName}<br>
+                      <strong>Mii:</strong> ${miiName}<br>
+                      <img src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(
+                        Array.from(data).map(b=>b.toString(16).padStart(2,'0')).join('')
+                      )}" width="64" height="64">`;
+      outputList.appendChild(li);
+    }
+
+    fileInput.addEventListener('change', async () => {
+      outputList.innerHTML = '';
+      const files = Array.from(fileInput.files);
+      for (let file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        const data = padTo74Bytes(new Uint8Array(arrayBuffer));
+        const miiName = extractMiiName(data);
+        addMiiToList(file.name, miiName, data);
+      }
+    });
+  </script>
+</body>
+</html>

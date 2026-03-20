@@ -1,0 +1,37 @@
+<input type="file" id="fileInput" multiple> <!-- permite varios archivos -->
+
+<ul id="outputList"></ul>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const outputList = document.getElementById('outputList');
+
+fileInput.addEventListener('change', async () => {
+  outputList.innerHTML = '';
+  const files = Array.from(fileInput.files);
+
+  for (let idx = 0; idx < files.length; idx++) {
+    const file = files[idx];
+    const arrayBuffer = await file.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+
+    // Pad/truncar a 74 bytes
+    const padded = data.length < 74 ? new Uint8Array([...data, ...new Array(74 - data.length).fill(0)]) : data.slice(0,74);
+
+    // Extraer nombre
+    let name = '';
+    try {
+      const nameBytes = padded.slice(2, 2+20);
+      name = new TextDecoder('utf-16be').decode(nameBytes).replace(/\0/g,'');
+    } catch(e){ name = 'Unknown'; }
+
+    // Crear li
+    const li = document.createElement('li');
+    li.innerHTML = `<strong>${name}</strong><br>
+      <img src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(
+        Array.from(padded).map(b=>b.toString(16).padStart(2,'0')).join('')
+      )}" width="64" height="64">`;
+    outputList.appendChild(li);
+  }
+});
+</script>

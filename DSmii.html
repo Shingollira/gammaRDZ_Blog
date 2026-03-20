@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DS Mii to Wii Converter</title>
+  <style>
+    body { font-family: sans-serif; padding: 10px; }
+    button { cursor: pointer; margin-top: 5px; }
+    li { margin-bottom: 10px; }
+  </style>
+</head>
+
+<body>
+  <h1>DS Mii format to Wii format converter</h1>
+  <p>Drop a DS format (".ncd") Mii file or its 74 byte data in hex here.<br>
+    Or, drop a save file/state/memdump from Tomodachi Collection.</p>
+
+  <div id="miiConverterContainer"></div>
+
+  <script>
+    const MiiConverter = (() => {
+      const DATA_LENGTH = 74;
+      const NAME_OFFSET = 0x2;
+      const MAX_NAME_LENGTH = 0x14;
+      const FFLI_SWAP_ENDIAN_TYPE_U8 = 0;
+      const FFLI_SWAP_ENDIAN_TYPE_U16 = 1;
+      const FFLI_SWAP_ENDIAN_TYPE_U32 = 2;
+
+      const SWAP_DESC = [
+        { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 11 },
+        { type: FFLI_SWAP_ENDIAN_TYPE_U8, count: 10 },
+        { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 11 },
+        { type: FFLI_SWAP_ENDIAN_TYPE_U16, count: 10 }
+      ];
+
+      // Utility functions
+      const swapEndianArray = (data, start, count, type) => {
+        const size = type === FFLI_SWAP_ENDIAN_TYPE_U8 ? 1 :
+                     type === FFLI_SWAP_ENDIAN_TYPE_U16 ? 2 : 4;
+        for (let i = 0; i < count; i++) {
+          const index = start + i * size;
+          if (type === FFLI_SWAP_ENDIAN_TYPE_U16) [data[index], data[index + 1]] = [data[index + 1], data[index]];
+          else if (type === FFLI_SWAP_ENDIAN_TYPE_U32) {
+            const t0=data[index], t1=data[index+1], t2=data[index+2], t3=data[index+3];
+            data[index]=t3; data[index+1]=t2; data[index+2]=t1; data[index+3]=t0;
+          }
+        }
+      };
+
+      const swapEndian = (data) => {
+        let offset = 0;
+        SWAP_DESC.forEach(desc => {
+          swapEndianArray(data, offset, desc.count, desc.type);
+          offset += desc.count * (desc.type === FFLI_SWAP_ENDIAN_TYPE_U8 ? 1 :
+                                 desc.type === FFLI_SWAP_ENDIAN_TYPE_U16 ? 2 : 4);
+        });
+      };
+
+      const bytesToHex = bytes => Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+
+      const padTo74Bytes = data => {
+        if (data.length===74) return data;
+        if (data.length<74){ const padded=new Uint8Array(74); padded.set(data); return padded; }
+        return data.slice(0,74);
+      };
+
+      const extractName = (data, offset=NAME_OFFSET, maxLen=MAX_NAME_LENGTH) => {
+        let end=offset;
+        while(end<offset+maxLen && !(data[end]===0 && data[end+1]===0)) end+=2;
+        return new TextDecoder('utf-16be').decode(data.slice(offset,end));
+      };
+
+      const getRandomPastelColor = () => {
+        const mix=[255,255,224], base=[Math.random()*256,Math.random()*256,Math.random()*256];
+        return `rgb(${base.map((v,i)=>Math.round((v+mix[i])/2)).join(',')})`;
+      };
+
+      const isValidBlock = block => {
+        const invalidPrefix = [0x74,0x73,0x75,0x6D,0x61,0x6E,0x6F,0x67,0x6F,0x73,0x61,0x6B,0x61,0x74,0x61];
+        if (block.every(b=>b===0)) return false;
+        if (invalidPrefix.every((v,i)=>v===block[i])) return false;
+        return true;
+      };
+
+      const createUI = container => {
+        container.innerHTML = `
+          <form>
+            <input type="file" id="mcFileInput"><br>
+            <input type="text" id="mcDataInput" placeholder="Base64 or Hex Mii Data"><br>
+            <input type="submit" value="Process">
+          </form>
+          <ul id="mcOutputList"></ul>
+        `;
+      };
+
+      const appendResult = (hexData, name, rawData, list) => {
+        const li=document.createElement('li');
+        li.style.color = getRandomPastelColor();
+        li.innerHTML = `<strong>${name}</strong><pre>${hexData}</pre>
+          <img loading="lazy" src="https://mii-unsecure.ariankordi.net/miis/image.png?width=96&data=${encodeURIComponent(hexData)}"><br>`;
+        const btn=document.createElement('button');
+        btn.textContent='Download .rcd';
+        btn.onclick=()=>{ 
+          const blob = new Blob([rawData], {type:'application/octet-stream'});
+          const a=document.createElement('a');
+          a.href=URL.createObjectURL(blob);
+          a.download = `${name||'mii'}.rcd`;
+          a.click(); 
+          URL.revokeObjectURL(a.href);
+        };
+        li.appendChild(btn);
+        list.insertBefore(li,list.firstChild);
+      };
+
+      const processBlocks = blocks => {
+        const list = document.getElementById('mcOutputList');
+        blocks.forEach(b=>{
+          const copy=new Uint8Array(b);
+          swapEndian(copy);
+          appendResult(bytesToHex(copy), extractName(copy), copy, list);
+        });
+      };
+
+      const detectAndDecodeInput = input => {
+        input=input.replace(/\s+/g,'');
+        if (/^[0-9a-fA-F]+$/.test(input)) return new Uint8Array(input.match(/.{1,2}/g).map(b=>parseInt(b,16)));
+        try{ const binary=atob(input); return Uint8Array.from(binary,c=>c.charCodeAt(0)); } catch { throw new Error("Invalid Base64 or Hex input"); }
+      };
+
+      const extractBlocksFromData = data => {
+        const sig=[0x4D,0x61,0x61,0x4D,0x69,0x69,0x4D,0x75,0x75,0x4D,0x65,0x65,0x4D,0x6F,0x6F,0x00];
+        const blocks=[];
+        for(let i=0;i<=data.length-sig.length-DATA_LENGTH;i++){
+          if(sig.every((v,j)=>v===data[i+j])){
+            const blk=data.slice(i+sig.length,i+sig.length+DATA_LENGTH);
+            if(isValidBlock(blk)) blocks.push(blk);
+            i+=DATA_LENGTH-1;
+          }
+        }
+        return blocks;
+      };
+
+      const deduplicateBlocks = blocks => {
+        const seen=new Set(), uniques=[];
+        blocks.forEach(b=>{ const h=bytesToHex(b); if(!seen.has(h)){seen.add(h); uniques.push(b);} });
+        return uniques;
+      };
+
+      const handleSubmit = e => {
+        e.preventDefault();
+        const fileInput = document.getElementById('mcFileInput');
+        const textInput = document.getElementById('mcDataInput');
+        const list = document.getElementById('mcOutputList');
+
+        if(fileInput.files.length>0){
+          const file=fileInput.files[0];
+          const reader=new FileReader();
+          reader.onload=e=>{
+            let data=new Uint8Array(e.target.result);
+            if(data.length>DATA_LENGTH){
+              const blocks=deduplicateBlocks(extractBlocksFromData(data));
+              processBlocks(blocks);
+            } else processBlocks([padTo74Bytes(data)]);
+          };
+          reader.readAsArrayBuffer(file);
+        } else if(textInput.value.trim()!==''){
+          try{ processBlocks([padTo74Bytes(detectAndDecodeInput(textInput.value))]); } 
+          catch(err){ alert(err.message); }
+        } else alert("Provide file or hex/base64 Mii data.");
+      };
+
+      return {
+        init: containerId=>{
+          const container=document.getElementById(containerId);
+          createUI(container);
+          const form=container.querySelector('form');
+          form.addEventListener('submit', handleSubmit);
+          container.querySelector('#mcFileInput').addEventListener('change', ()=>handleSubmit(new Event('submit')));
+        }
+      };
+    })();
+
+    document.addEventListener('DOMContentLoaded',()=>MiiConverter.init('miiConverterContainer'));
+  </script>
+</body>
+</html>
