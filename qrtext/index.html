@@ -16,19 +16,17 @@ const messageDiv = document.getElementById("message");
 const params = new URLSearchParams(window.location.search);
 const msg = params.get("msg");
 
-// Si hay mensaje, mostrarlo
 if(msg) {
-  messageDiv.textContent = decodeURIComponent(msg);
+  const decodedMsg = decodeURIComponent(msg);
+  messageDiv.textContent = decodedMsg;
+
+  // Cambiar el título dinámicamente según el mensaje
+  document.title = decodedMsg;
 } else {
+  messageDiv.textContent = "No se detectó mensaje, regresando…";
   setTimeout(() => {
     history.back();
   }, 1000); // 1 segundo antes de regresar
-}
-document.title = decodedMsg;
-} else {
-  setTimeout(() => {
-    history.back();
-  }, 1000);
 }
 </script>
 
