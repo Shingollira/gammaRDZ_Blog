@@ -2,23 +2,43 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Playlist</title>
+<title>Fragmentar imagen</title>
 <style>
-body{
-  margin:0;
-  background:black;
-  display:flex;
-  justify-content:center;
-}
-img{
-  max-width:100%;
-  height:auto;
-}
+body { background:black; margin:0; }
+canvas { display:block; margin:auto; }
 </style>
 </head>
 <body>
 
-<img src="playlist/image1.png">
+<canvas id="canvas"></canvas>
+
+<script>
+const img = new Image();
+img.src = "image1.png"; // tu imagen
+
+img.onload = () => {
+    const sliceHeight = 1000; // altura de cada fragmento
+    const totalSlices = Math.ceil(img.height / sliceHeight);
+
+    for(let i = 0; i < totalSlices; i++){
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        canvas.width = img.width;
+        canvas.height = sliceHeight;
+
+        ctx.drawImage(
+            img,
+            0, i * sliceHeight,
+            img.width, sliceHeight,
+            0, 0,
+            img.width, sliceHeight
+        );
+
+        document.body.appendChild(canvas);
+    }
+};
+</script>
 
 </body>
 </html>
