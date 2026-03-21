@@ -2,51 +2,35 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Playlist Split</title>
+<title>Playlist Slices</title>
+
 <style>
-body {
+body{
   background: black;
   margin: 0;
 }
-canvas {
+
+img{
   display: block;
-  margin: 20px auto;
-  border: 1px solid white;
+  width: 100%;
+  margin-bottom: 10px;
 }
 </style>
+
 </head>
 <body>
 
 <script>
-const img = new Image();
-img.src = "image1.png"; // MISMA CARPETA
+const playlists = ["playlist1", "playlist2"];
 
-img.onload = () => {
-    const sliceHeight = 800; // MÁS PEQUEÑO = más legible
-    const totalSlices = Math.ceil(img.height / sliceHeight);
-
-    for(let i = 0; i < totalSlices; i++){
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-
-        canvas.width = img.width;
-        canvas.height = sliceHeight;
-
-        ctx.drawImage(
-            img,
-            0, i * sliceHeight,
-            img.width, sliceHeight,
-            0, 0,
-            img.width, sliceHeight
-        );
-
-        document.body.appendChild(canvas);
+for (let name of playlists){
+    for(let i = 0; i < 50; i++){
+        const img = document.createElement("img");
+        img.src = `${name}_slice_${i}.png`;
+        img.onerror = () => img.remove();
+        document.body.appendChild(img);
     }
-};
-
-img.onerror = () => {
-    document.body.innerHTML = "<h1 style='color:white'>Error cargando imagen</h1>";
-};
+}
 </script>
 
 </body>
