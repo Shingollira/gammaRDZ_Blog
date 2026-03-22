@@ -3,34 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <title>YouBeenTrolled</title>
-
 <style>
-body{
-  margin:0;
-  background:black;
-  overflow:hidden;
-  font-family:sans-serif;
+body {
+  margin: 0;
+  background: black;
+  overflow: hidden;
+  font-family: "Times New Roman", serif;
 }
 
-#msg{
-  position:absolute;
-  top:20px;
-  width:100%;
-  text-align:center;
-  color:white;
-  font-size:20px;
-  z-index:10;
-  text-shadow:0 0 10px black;
+#msg {
+  position: absolute;
+  top: 20px;
+  width: 100%;
+  text-align: center;
+  color: white;
+  font-size: 40px;
+  font-weight: bold;
+  z-index: 10;
+  text-shadow: 0 0 15px black;
 }
 
-video{
-  width:100vw;
-  height:100vh;
-  object-fit:cover;
+video {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain; /* asegura que se vea todo */
+  background: black;
 }
 </style>
 </head>
-
 <body>
 
 <div id="msg">You just got rickrolled, kid.</div>
@@ -40,28 +40,39 @@ video{
 </video>
 
 <script>
+const video = document.getElementById("vid");
+
 // Leer parámetro ?msg=
 const params = new URLSearchParams(location.search);
 const redirect = params.get("msg");
 
-const video = document.getElementById("vid");
-
-// Intentar quitar mute al interactuar
+// Quitar mute al tocar pantalla
 document.body.addEventListener("click", () => {
   video.muted = false;
 });
 
-// Si hay URL → redirigir en 5 segundos
+// Función para reproducir segmentos si hay link
 if (redirect) {
-  setTimeout(() => {
-    window.location.href = redirect;
-  }, 5000);
-}
+  let stage = 0;
+  
+  video.currentTime = 0; // inicio en 0
+  video.play();
 
-// Si NO hay → dejar que termine
-video.addEventListener("ended", () => {
-  console.log("Video terminado");
-});
+  const checkTime = setInterval(() => {
+    if (stage === 0 && video.currentTime >= 7) {
+      video.currentTime = 43;
+      stage = 1;
+    } else if (stage === 1 && video.currentTime >= 50) {
+      clearInterval(checkTime);
+      window.location.href = redirect;
+    }
+  }, 100);
+} else {
+  // No hay link: reproducir completo
+  video.addEventListener("ended", () => {
+    console.log("Video completo terminado");
+  });
+}
 </script>
 
 </body>
