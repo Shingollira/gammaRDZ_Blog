@@ -1,7 +1,68 @@
 <!DOCTYPE html>
 <html>
-  <body>
-	<iframe width="500" height="500" src="https://www.youtube.com/embed/DLzxrzFCyOs?hl=en_US&version=3&rel=0&autoplay=1" frameborder="1" allowfullscreen></iframe>
-	<h1>You thought :></h1>
-  </body>
+<head>
+<meta charset="UTF-8">
+<title>Rickroll</title>
+
+<style>
+body{
+  margin:0;
+  background:black;
+  overflow:hidden;
+  font-family:sans-serif;
+}
+
+#msg{
+  position:absolute;
+  top:20px;
+  width:100%;
+  text-align:center;
+  color:white;
+  font-size:20px;
+  z-index:10;
+  text-shadow:0 0 10px black;
+}
+
+video{
+  width:100vw;
+  height:100vh;
+  object-fit:cover;
+}
+</style>
+</head>
+
+<body>
+
+<div id="msg">You just got rickrolled, kid.</div>
+
+<video id="vid" autoplay muted playsinline>
+  <source src="https://shattereddisk.github.io/rickroll/rickroll.mp4" type="video/mp4">
+</video>
+
+<script>
+// Leer parámetro ?msg=
+const params = new URLSearchParams(location.search);
+const redirect = params.get("msg");
+
+const video = document.getElementById("vid");
+
+// Intentar quitar mute al interactuar
+document.body.addEventListener("click", () => {
+  video.muted = false;
+});
+
+// Si hay URL → redirigir en 5 segundos
+if (redirect) {
+  setTimeout(() => {
+    window.location.href = redirect;
+  }, 5000);
+}
+
+// Si NO hay → dejar que termine
+video.addEventListener("ended", () => {
+  console.log("Video terminado");
+});
+</script>
+
+</body>
 </html>
