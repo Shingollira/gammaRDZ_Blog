@@ -11,30 +11,28 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   background: black;
   font-family: monospace;
 }
 
-/* donut oculto al inicio */
+/* TEXTO INICIAL */
+#startText{
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 40px;
+  cursor: pointer;
+  z-index: 9999;
+}
+
+/* DONUT */
 pre{
   color:white;
   margin:0;
   display:none;
-}
-
-/* texto inicial */
-#startText{
   position:absolute;
-  top:50%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  color:white;
-  font-size:40px;
-  cursor:pointer;
-  z-index:10;
 }
 </style>
 </head>
@@ -58,7 +56,7 @@ var libopenmpt = Module;
 <script src="js/chiptune2.js"></script>
 
 <script>
-/* ajustar tamaño de letra */
+/* ajustar tamaño */
 function resizeDonut(){
     var w = window.innerWidth;
     var h = window.innerHeight;
@@ -75,19 +73,17 @@ function resizeDonut(){
 window.addEventListener("resize", resizeDonut);
 document.addEventListener('fullscreenchange', resizeDonut);
 
-/* Wake Lock API */
+/* wake lock */
 let wakeLock = null;
 async function requestWakeLock() {
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
         }
-    } catch (err) {
-        console.error(err);
-    }
+    } catch (err) {}
 }
 
-/* música en bucle */
+/* música */
 function startMusic(){
     if(!window.player) return;
     window.player.load("music.mod", function(buffer){
@@ -98,7 +94,7 @@ function startMusic(){
     });
 }
 
-/* donut ASCII */
+/* donut */
 function startDonut(){
     if (window.donutInterval) return;
     var A=0, B=0;
