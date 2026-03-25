@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ASCII Player</title>
+
+<style>
+html, body{
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  background:black;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  overflow:hidden;
+  font-family: monospace;
+}
+
+pre{
+  color:white;
+  margin:0;
+}
+</style>
+</head>
+
+<body>
+
+<pre id="ascii"></pre>
+
+<script>
+async function loadASCII(url){
+    let res = await fetch(url);
+    return await res.text();
+}
+
+function resize(pre, text){
+    let lines = text.split("\n");
+    let cols = Math.max(...lines.map(l=>l.length));
+    let rows = lines.length;
+
+    let sizeW = window.innerWidth / cols;
+    let sizeH = window.innerHeight / rows;
+    let size = Math.min(sizeW, sizeH);
+
+    pre.style.fontSize = size + "px";
+    pre.style.lineHeight = size + "px";
+}
+
+async function start(){
+    const pre = document.getElementById("ascii");
+
+    let frames = await Promise.all([
+        loadASCII("ascii_art.txt"),
+        loadASCII("ascii_art (1).txt"),
+        loadASCII("ascii_art (2).txt")
+    ]);
+
+    let loopFrames = [
+        ...frames,
+        ...frames.slice(1, -1).reverse()
+    ];
+
+    let i = 0;
+
+    function render(){
+        let frame = loopFrames[i];
+        pre.textContent = frame;
+        resize(pre, frame);
+        i = (i + 1) % loopFrames.length;
+    }
+
+    render();
+    setInterval(render, 120);
+}
+
+start();
+window.addEventListener("resize", ()=>location.reload());
+</script>
+
+</body>
+</html>
