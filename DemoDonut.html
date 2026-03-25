@@ -27,12 +27,19 @@ html, body {
   z-index: 9999;
 }
 
+/* CONTENEDOR DEL DONUT */
+#donutContainer{
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 /* DONUT */
 pre{
   color:white;
   margin:0;
   display:none;
-  position:absolute;
 }
 </style>
 </head>
@@ -40,7 +47,10 @@ pre{
 <body>
 
 <div id="startText">click_me</div>
-<pre id="donut"></pre>
+
+<div id="donutContainer">
+  <pre id="donut"></pre>
+</div>
 
 <!-- CONFIG LIBOPENMPT -->
 <script>
