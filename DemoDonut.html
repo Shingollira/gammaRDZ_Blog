@@ -12,22 +12,36 @@ html, body {
   height: 100%;
   overflow: hidden;
   display: flex;
-  justify-content: center; /* horizontal */
-  align-items: center;     /* vertical */
+  justify-content: center;
+  align-items: center;
   background: black;
   font-family: monospace;
 }
 
+/* donut oculto al inicio */
 pre{
   color:white;
   margin:0;
-  display:block;
+  display:none;
+}
+
+/* texto inicial */
+#startText{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  color:white;
+  font-size:40px;
+  cursor:pointer;
+  z-index:10;
 }
 </style>
 </head>
 
 <body>
 
+<div id="startText">click_me</div>
 <pre id="donut"></pre>
 
 <!-- CONFIG LIBOPENMPT -->
@@ -61,19 +75,15 @@ function resizeDonut(){
 window.addEventListener("resize", resizeDonut);
 document.addEventListener('fullscreenchange', resizeDonut);
 
-/* Wake Lock API para mantener pantalla encendida */
+/* Wake Lock API */
 let wakeLock = null;
 async function requestWakeLock() {
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
-            wakeLock.addEventListener('release', () => {
-                console.log('Wake Lock liberado');
-            });
-            console.log('Wake Lock activo');
         }
     } catch (err) {
-        console.error(`${err.name}, ${err.message}`);
+        console.error(err);
     }
 }
 
@@ -90,7 +100,7 @@ function startMusic(){
 
 /* donut ASCII */
 function startDonut(){
-    if (window.donutInterval) return; // evita duplicar
+    if (window.donutInterval) return;
     var A=0, B=0;
     window.donutInterval = setInterval(function(){
         var b=[], z=[];
@@ -118,14 +128,20 @@ function startDonut(){
     },50);
 }
 
-/* iniciar todo y fullscreen */
+/* iniciar todo */
 function startAll(){
     if (!window.started){
         startMusic();
         startDonut();
-        requestWakeLock(); // activar wake lock
+        requestWakeLock();
+
+        document.getElementById("donut").style.display = "block";
+        document.getElementById("startText").style.display = "none";
+
+        resizeDonut();
         window.started = true;
     }
+
     const elem = document.documentElement;
     if (!document.fullscreenElement) {
         if (elem.requestFullscreen) elem.requestFullscreen();
