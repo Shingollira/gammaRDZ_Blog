@@ -3,19 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <title>Wii_Donut</title>
-<link rel="icon" href="homebrew.jpeg" type="image/jpg">
 
 <style>
 html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: black;
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  background:black;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  overflow:hidden;
   font-family: monospace;
 }
 
@@ -42,20 +41,12 @@ pre{
 <div id="startText">click_me</div>
 <pre id="screen"></pre>
 
-<!-- LIBOPENMPT -->
-<script>
-var Module = {
-  onRuntimeInitialized:function(){
-    window.player = new ChiptuneJsPlayer(new ChiptuneJsConfig(-1));
-  }
-};
-var libopenmpt = Module;
-</script>
-
 <script src="js/libopenmpt.js"></script>
 <script src="js/chiptune2.js"></script>
 
 <script>
+let started = false;
+
 /* resize */
 function resize(pre, text){
     let lines = text.split("\n");
@@ -71,68 +62,16 @@ function resize(pre, text){
     pre.style.lineHeight = size + "px";
 }
 
-window.addEventListener("resize", ()=>location.reload());
-
-/* Wake Lock */
-async function requestWakeLock() {
-    try {
-        if ('wakeLock' in navigator) {
-            await navigator.wakeLock.request('screen');
-        }
-    } catch(e){}
-}
-
-/* música */
-function startMusic(){
-    if(!window.player) return;
-    window.player.load("music.mod", function(buffer){
-        function loop(){
-            window.player.play(buffer, { onEnded: loop });
-        }
-        loop();
-    });
-}
-
-/* DONUT */
-function startDonut(){
-    if (window.donutInterval) return;
-
-    let A=0, B=0;
-    const pre = document.getElementById("screen");
-
-    setInterval(function(){
-        let b=[], z=[];
-        for(let k=0;k<1760;k++){
-            b[k]=k%80==79 ? "\n":" ";
-            z[k]=0;
-        }
-        for(let j=0;j<6.28;j+=0.07){
-        for(let i=0;i<6.28;i+=0.02){
-            let c=Math.sin(i), d=Math.cos(j), e=Math.sin(A), f=Math.sin(j),
-                g=Math.cos(A), h=d+2, D=1/(c*h*e+f*g+5),
-                l=Math.cos(i), m=Math.cos(B), n=Math.sin(B),
-                t=c*h*g-f*e,
-                x=0|40+30*D*(l*h*m-t*n),
-                y=0|12+15*D*(l*h*n+t*m),
-                o=x+80*y,
-                N=0|8*((f*e-c*d*g)*m-c*d*e-f*g-l*d*n);
-            if(y<22 && y>=0 && x>=0 && x<80 && D>z[o]){
-                z[o]=D;
-                b[o]=".,-~:;=!*#$@"[N>0?N:0];
-            }
-        }}
-        pre.textContent=b.join("");
-        A+=0.04; B+=0.02;
-    },50);
-}
-
-/* cargar ASCII */
+/* ASCII */
 async function loadASCII(url){
-    let res = await fetch(url);
-    return await res.text();
+    try{
+        let res = await fetch(url);
+        return await res.text();
+    }catch{
+        return "ERROR LOADING " + url;
+    }
 }
 
-/* MIKU: 3 loops ida+vuelta */
 async function playASCII(){
     const pre = document.getElementById("screen");
 
@@ -155,46 +94,92 @@ async function playASCII(){
             let frame = loopFrames[i];
             pre.textContent = frame;
 
-            if(i === 0) resize(pre, frame);
+            if(i===0) resize(pre, frame);
 
             i++;
-
             if(i >= loopFrames.length){
                 i = 0;
                 loops++;
             }
 
-            if(loops >= 3){ // 🔥 3 loops completos
+            if(loops >= 3){
                 clearInterval(interval);
                 resolve();
             }
-
         },120);
     });
 }
 
-/* START */
-let started = false;
+/* DONUT */
+function startDonut(){
+    let A=0, B=0;
+    const pre = document.getElementById("screen");
 
-async function startAll(){
+    setInterval(()=>{
+        let b=[], z=[];
+        for(let k=0;k<1760;k++){
+            b[k]=k%80==79 ? "\n":" ";
+            z[k]=0;
+        }
+        for(let j=0;j<6.28;j+=0.07){
+        for(let i=0;i<6.28;i+=0.02){
+            let c=Math.sin(i), d=Math.cos(j), e=Math.sin(A), f=Math.sin(j),
+                g=Math.cos(A), h=d+2, D=1/(c*h*e+f*g+5),
+                l=Math.cos(i), m=Math.cos(B), n=Math.sin(B),
+                t=c*h*g-f*e,
+                x=0|40+30*D*(l*h*m-t*n),
+                y=0|12+15*D*(l*h*n+t*m),
+                o=x+80*y,
+                N=0|8*((f*e-c*d*g)*m-c*d*e-f*g-l*d*n);
+            if(y<22 && y>=0 && x>=0 && x<80 && D>z[o]){
+                z[o]=D;
+                b[o]=".,-~:;=!*#$@"[N>0?N:0];
+            }
+        }}
+        pre.textContent = b.join("");
+        A+=0.04; B+=0.02;
+    },50);
+}
+
+/* MÚSICA (safe) */
+function startMusic(){
+    try{
+        var player = new ChiptuneJsPlayer(new ChiptuneJsConfig(-1));
+        player.load("music.mod", function(buffer){
+            function loop(){
+                player.play(buffer, { onEnded: loop });
+            }
+            loop();
+        });
+    }catch(e){
+        console.log("music error", e);
+    }
+}
+
+/* START */
+function startAll(){
     if(started) return;
     started = true;
 
     const pre = document.getElementById("screen");
 
+    // 🔥 fullscreen SOLO aquí (sin async)
+    if (document.documentElement.requestFullscreen){
+        document.documentElement.requestFullscreen();
+    }
+
     document.getElementById("startText").style.display = "none";
     pre.style.display = "block";
 
-    requestWakeLock();
+    // ejecutar secuencia después (no bloquea fullscreen)
+    runDemo();
+}
 
-    // fullscreen
-    const elem = document.documentElement;
-    if (!document.fullscreenElement && elem.requestFullscreen){
-        elem.requestFullscreen();
-    }
+/* secuencia */
+async function runDemo(){
     await playASCII();
-    startMusic();
     startDonut();
+    startMusic();
 }
 
 window.addEventListener("click", startAll);
