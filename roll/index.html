@@ -58,13 +58,13 @@ if (redirect) {
   let redirected = false;
 
   // intro
-  const introTime = 7;
+  const introTime = 18;
 
   // drop
   const dropTime = 43;
 
   // redirect
-  const afterDrop = 7;
+  const redirectTime = 60;
 
   video.addEventListener("timeupdate", () => {
 
@@ -76,15 +76,15 @@ if (redirect) {
     }
 
     if (
-      jumped &&
-      !redirected &&
-      video.currentTime >= dropTime + afterDrop
-    ) {
+  jumped &&
+  !redirected &&
+  video.currentTime >= redirectTime
+) {
 
-      redirected = true;
+  redirected = true;
 
-      window.location.href = redirect;
-    }
+  window.location.href = redirect;
+}
 
   });
 
