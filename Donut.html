@@ -3,14 +3,10 @@
 <meta charset="UTF-8">
 <title>Wii_Donut</title>
 <link rel="icon" href="homebrew.jpeg" type="image/jpeg"><style>
-
-@font-face {
-    font-family: 'HomeVideo';
-    src: url('HomeVideo-Bold.ttf') format('truetype');
-    font-weight: bold;
-    font-style: normal;
+    @font-face {
+    font-family: "HomeVideo";
+    src: url("HomeVideo-Bold.ttf") format("truetype");
 }
-
 html, body {
     margin: 0;
     padding: 0;
@@ -18,31 +14,26 @@ html, body {
     height: 100%;
     overflow: hidden;
     background: black;
-    font-family: 'HomeVideo', "Courier New", monospace;
+    font-family: "Courier New", monospace;
 }
 
 body {
-display: flex;
+ let size = Math.floor(
+Math.min(sizeW, sizeH)
+);   display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
 }
 
 #donut {
-    font-family: 'HomeVideo', "Courier New", monospace;
     color: white;
     white-space: pre;
     margin: 0;
     text-align: left;
     user-select: none;
-    background-color: black !important;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    -webkit-font-smoothing: none;
-    mix-blend-mode: color-dodge;
 }
 #info {
-    font-family: 'HomeVideo', "Courier New", monospace;
     margin-top: 0;
 
     background: #0040AA;
@@ -60,11 +51,6 @@ display: flex;
 
     text-align: left;
     user-select: none;
-    background-color: black !important;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    -webkit-font-smoothing: none;
-    mix-blend-mode: color-dodge;
 }
 </style></head><body><pre id="donut"></pre><pre id="info">.----------------------------------------------------------------------------.
 |  Wii Donut v1.0                                     (Press HOME to quit.)  |
