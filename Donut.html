@@ -4,12 +4,13 @@
 <title>Wii_Donut</title>
 <link rel="icon" href="homebrew.jpeg" type="image/jpeg"><style>
 
-    @font-face {
+@font-face {
     font-family: 'HomeVideo';
     src: url('HomeVideo-Bold.ttf') format('truetype');
     font-weight: bold;
     font-style: normal;
 }
+
 html, body {
     margin: 0;
     padding: 0;
@@ -17,7 +18,8 @@ html, body {
     height: 100%;
     overflow: hidden;
     background: black;
-    font-family: 'HomeVideo', monospace;
+    /* 2. Aplicamos la fuente. Si no carga, usa Courier New por defecto */
+    font-family: 'HomeVideo', "Courier New", monospace;
 }
 
 body {
